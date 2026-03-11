@@ -54,7 +54,7 @@ func callClaude(prompt string) (string, error) {
 func callGemini(prompt string) (string, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" { return "", fmt.Errorf("GEMINI_API_KEY not set") }
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s", apiKey)
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", apiKey)
 	body, _ := json.Marshal(map[string]interface{}{
 		"contents": []map[string]interface{}{{"parts": []map[string]string{{"text": prompt}}}},
 	})
