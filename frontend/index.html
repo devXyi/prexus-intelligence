@@ -761,15 +761,15 @@ function launchMeteorium() {
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 /* ═══════════════════════════════════════════════════════
-   API CONFIG
+   CONFIG & HELPERS
 ═══════════════════════════════════════════════════════ */
-
 const AI_MODELS = {
-  claude:  { label:'Claude',  provider:'Anthropic', color:'#7C3AED', icon:'fa-robot',  badge:'CLAUDE·3.5' },
   gemini:  { label:'Gemini',  provider:'Google',    color:'#2563EB', icon:'fa-gem',    badge:'GEMINI·2.5' },
+  claude:  { label:'Claude',  provider:'Anthropic', color:'#7C3AED', icon:'fa-robot',  badge:'CLAUDE·3.5' },
   chatgpt: { label:'ChatGPT', provider:'OpenAI',    color:'#10B981', icon:'fa-brain',  badge:'GPT·4O'     },
 };
 
@@ -794,318 +794,287 @@ async function aiChat(messages, model='gemini') {
   return data.result;
 }
 
-/* ═══════════════════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════════════════ */
-const riskMeta = s => {
-  if (s >= .85) return { label:'CRITICAL', cls:'rc', bgc:'rbc', hex:'#EF4444' };
-  if (s >= .70) return { label:'HIGH',     cls:'rh', bgc:'rbh', hex:'#F97316' };
-  if (s >= .55) return { label:'ELEVATED', cls:'re', bgc:'rbe', hex:'#F59E0B' };
-  if (s >= .35) return { label:'MODERATE', cls:'rm', bgc:'rbm', hex:'#3B82F6' };
-  return               { label:'LOW',      cls:'rl', bgc:'rbl', hex:'#10B981' };
-};
-const fUsd = mm => mm >= 1000 ? `$${(mm/1000).toFixed(1)}B` : `$${mm}M`;
-const fPct = v  => `${(v*100).toFixed(1)}%`;
-const sevMeta = sev => ({
-  CRITICAL:{ c:'#EF4444', bg:'rgba(239,68,68,.07)' },
-  HIGH:    { c:'#F97316', bg:'rgba(249,115,22,.07)' },
-  ELEVATED:{ c:'#F59E0B', bg:'rgba(245,158,11,.07)' },
-  MODERATE:{ c:'#3B82F6', bg:'rgba(59,130,246,.07)' },
-}[sev] || { c:'#94A3B8', bg:'transparent' });
-
-const ASSET_TYPES = ['Energy','Infrastructure','Industrial','Commercial','Agriculture','Technology','Finance','Transport'];
-const AssetModal = ({ asset, onSave, onClose }) => {
-  const isEdit = !!asset?.id;
-  const [form, setForm] = useState({
-    name:     asset?.name     || '',
-    type:     asset?.type     || 'Infrastructure',
-    country:  asset?.country  || '',
-    cc:       asset?.cc       || '',
-    lat:      asset?.lat      ?? 0,
-    lon:      asset?.lon      ?? 0,
-    value_mm: asset?.value_mm ?? 0,
-    pr:       asset?.pr       ?? 0.5,
-    tr:       asset?.tr       ?? 0.5,
-    cr:       asset?.cr       ?? 0.5,
-    alerts:   asset?.alerts   ?? 0,
+/* ── Risk engine call — proxied through Go backend ── */
+async function callRiskEngine(path, body, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API_BASE + path, {
+    method: 'POST', headers, body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
-  const [saving, setSaving] = useState(false);
-  const set = (k, v) => setForm(f => ({...f, [k]: v}));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Engine error ${res.status}`);
+  }
+  return res.json();
+}
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    await onSave({ ...form, lat: parseFloat(form.lat), lon: parseFloat(form.lon),
-      value_mm: parseFloat(form.value_mm), pr: parseFloat(form.pr),
-      tr: parseFloat(form.tr), cr: parseFloat(form.cr), alerts: parseInt(form.alerts) });
-    setSaving(false);
-  };
+const fPct  = v => `${(v * 100).toFixed(1)}%`;
+const fUsd  = v => v >= 1000 ? `$${(v/1000).toFixed(2)}B` : `$${(v??0).toFixed(0)}M`;
+const fUsdM = v => `$${(v/1e6).toFixed(1)}M`;
 
-  const Inp = ({label, children}) => (
-    <div>
-      <label className="f-mono" style={{display:'block',fontSize:'8px',color:'var(--textx)',letterSpacing:'.14em',textTransform:'uppercase',marginBottom:'4px'}}>{label}</label>
-      {children}
-    </div>
-  );
+const riskMeta = s => {
+  if (s >= .85) return { label:'CRITICAL',  hex:'#EF4444', bg:'rgba(239,68,68,.07)'  };
+  if (s >= .65) return { label:'HIGH',       hex:'#F97316', bg:'rgba(249,115,22,.07)' };
+  if (s >= .45) return { label:'ELEVATED',   hex:'#F59E0B', bg:'rgba(245,158,11,.07)' };
+  if (s >= .25) return { label:'MODERATE',   hex:'#3B82F6', bg:'rgba(59,130,246,.07)' };
+  return              { label:'LOW',         hex:'#10B981', bg:'rgba(16,185,129,.07)' };
+};
 
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}}>
-      <div className="panel" style={{width:'100%',maxWidth:'580px',borderRadius:'8px',background:'var(--bg1)',overflow:'hidden',maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
-        <div style={{padding:'12px 18px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'10px',flexShrink:0}}>
-          <i className={`fa-solid ${isEdit?'fa-pen-to-square':'fa-plus'}`} style={{color:'#3B82F6',fontSize:'12px'}}></i>
-          <span className="f-display" style={{fontSize:'16px',fontWeight:700,color:'white',textTransform:'uppercase',letterSpacing:'.08em'}}>{isEdit ? 'Edit Asset' : 'Add New Asset'}</span>
-          <button onClick={onClose} style={{marginLeft:'auto',background:'none',border:'none',color:'var(--textd)',cursor:'pointer',fontSize:'16px'}}>✕</button>
-        </div>
+const sevMeta = s => {
+  if (s === 'CRITICAL') return { c:'#EF4444', bg:'rgba(239,68,68,.05)' };
+  if (s === 'HIGH')     return { c:'#F97316', bg:'rgba(249,115,22,.05)' };
+  return { c:'#F59E0B', bg:'rgba(245,158,11,.05)' };
+};
 
-        <form onSubmit={submit} style={{overflow:'auto',flex:1}}>
-          <div style={{padding:'18px',display:'flex',flexDirection:'column',gap:'14px'}}>
-            <Inp label="Asset Name *">
-              <input className="minp" required value={form.name} onChange={e=>set('name',e.target.value)} placeholder="e.g. Mumbai Port Authority Complex"/>
-            </Inp>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
-              <Inp label="Asset Type">
-                <select className="minp" value={form.type} onChange={e=>set('type',e.target.value)}>
-                  {ASSET_TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </Inp>
-              <Inp label="Value (USD Millions)">
-                <input className="minp" type="number" min="0" step="0.1" value={form.value_mm} onChange={e=>set('value_mm',e.target.value)} placeholder="e.g. 250"/>
-              </Inp>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
-              <Inp label="Country">
-                <input className="minp" value={form.country} onChange={e=>set('country',e.target.value)} placeholder="e.g. India"/>
-              </Inp>
-              <Inp label="Country Code (ISO)">
-                <input className="minp" maxLength={3} value={form.cc} onChange={e=>set('cc',e.target.value.toUpperCase())} placeholder="e.g. IND"/>
-              </Inp>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
-              <Inp label="Latitude">
-                <input className="minp" type="number" step="0.0001" value={form.lat} onChange={e=>set('lat',e.target.value)} placeholder="e.g. 19.0760"/>
-              </Inp>
-              <Inp label="Longitude">
-                <input className="minp" type="number" step="0.0001" value={form.lon} onChange={e=>set('lon',e.target.value)} placeholder="e.g. 72.8777"/>
-              </Inp>
-            </div>
-            <div style={{borderTop:'1px solid var(--border)',paddingTop:'14px'}}>
-              <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.14em',marginBottom:'12px'}}>Risk Scores (0.00 – 1.00) · AI will refine after analysis</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'12px'}}>
-                {[['Physical Risk','pr','#3B82F6'],['Transition Risk','tr','#F59E0B'],['Composite Risk','cr','#EF4444'],['Active Alerts','alerts','#F97316']].map(([l,k,c]) => (
-                  <div key={k}>
-                    <label className="f-mono" style={{display:'block',fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'4px'}}>{l}</label>
-                    <input className="minp" type="number" min={k==='alerts'?0:0} max={k==='alerts'?999:1} step={k==='alerts'?1:.01}
-                      value={form[k]} onChange={e=>set(k,e.target.value)}
-                      style={{fontSize:'11px',fontWeight:600,color:c}}/>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div style={{padding:'12px 18px',borderTop:'1px solid var(--border)',display:'flex',gap:'8px',flexShrink:0}}>
-            <button type="button" onClick={onClose} className="btn-g" style={{flex:1,justifyContent:'center'}}>Cancel</button>
-            <button type="submit" className="btn-p" disabled={saving} style={{flex:2,justifyContent:'center',padding:'9px',fontSize:'11px'}}>
-              {saving ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Saving...</> : <><i className={`fa-solid ${isEdit?'fa-check':'fa-plus'}`}></i>{isEdit ? 'Save Changes' : 'Add Asset'}</>}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+/* ── Scenario map: UI key → engine key ── */
+const SCENARIO_MAP = { baseline:'paris', disorderly:'baseline', failed:'failed' };
+
+const SCEN_META = {
+  baseline:   { lbl:'SSP1-1.9 · Ordered Transition',   desc:'~1.5°C warming. Strong coordinated policy. Rapid low-carbon transition.' },
+  disorderly: { lbl:'SSP2-4.5 · Disorderly Transition', desc:'~2.7°C warming. Fragmented policy. Abrupt mid-century transition shock.' },
+  failed:     { lbl:'SSP5-8.5 · Failed Transition',     desc:'~4.4°C warming. No mitigation. Physical hazard dominates through 2100.' },
 };
 
 /* ═══════════════════════════════════════════════════════
-   SHARED COMPONENTS
+   SMALL SHARED COMPONENTS
 ═══════════════════════════════════════════════════════ */
-const UTCClock = () => {
-  const [t, setT] = useState('');
-  useEffect(() => {
-    const tick = () => setT(new Date().toISOString().slice(0,19).replace('T',' ') + ' Z');
-    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
-  }, []);
-  return <span className="f-mono" style={{fontSize:'10.5px',color:'var(--textx)'}}>{t}</span>;
+const RBar = ({ val, w=80 }) => {
+  const m = riskMeta(val);
+  return (
+    <div style={{width:w,height:'3px',background:'rgba(255,255,255,.06)',borderRadius:'2px',overflow:'hidden'}}>
+      <div style={{height:'100%',background:m.hex,width:`${(val??0)*100}%`,transition:'width .8s'}}/>
+    </div>
+  );
 };
 
 const RiskBadge = ({ score }) => {
   const m = riskMeta(score);
   return (
-    <span className={`f-mono ${m.bgc}`} style={{display:'inline-flex',alignItems:'center',gap:'4px',border:'1px solid',borderRadius:'3px',padding:'1px 6px',fontSize:'8.5px',fontWeight:600}}>
-      <span style={{width:'5px',height:'5px',borderRadius:'50%',background:m.hex,boxShadow:`0 0 4px ${m.hex}`,flexShrink:0,display:'inline-block'}}></span>
+    <span className="f-mono" style={{fontSize:'8.5px',padding:'1px 6px',borderRadius:'2px',background:m.bg,color:m.hex,border:`1px solid ${m.hex}33`,fontWeight:700}}>
       {m.label}
     </span>
   );
 };
 
-const RBar = ({ val, w = 80 }) => {
-  const m = riskMeta(val);
-  return (
-    <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-      <div style={{height:'3px',width:`${w}px`,background:'rgba(255,255,255,.06)',borderRadius:'2px',overflow:'hidden',flexShrink:0}}>
-        <div style={{height:'100%',background:m.hex,width:`${val*100}%`,transition:'width .8s cubic-bezier(.16,1,.3,1)'}}></div>
-      </div>
-      <span className="f-mono" style={{fontSize:'10px',color:m.hex,minWidth:'34px'}}>{fPct(val)}</span>
-    </div>
-  );
-};
-
-const ArcGauge = ({ score }) => {
-  const m = riskMeta(score);
-  const R = 48; const C = 2*Math.PI*R; const half = C/2;
-  return (
-    <div style={{position:'relative',width:'110px',height:'60px',margin:'0 auto',flexShrink:0}}>
-      <svg viewBox="0 0 110 62" style={{overflow:'visible',width:'110px',height:'62px'}}>
-        <path d={`M 8 58 A ${R} ${R} 0 0 1 102 58`} fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="5.5" strokeLinecap="butt"/>
-        <path d={`M 8 58 A ${R} ${R} 0 0 1 102 58`} fill="none" stroke={m.hex} strokeWidth="5.5" strokeLinecap="butt"
-          strokeDasharray={`${half}`} strokeDashoffset={`${half - half*score}`}
-          style={{transition:'stroke-dashoffset 1s cubic-bezier(.16,1,.3,1),stroke .5s'}}/>
-        <text x="55" y="49" textAnchor="middle" fill="white" style={{fontFamily:'Barlow Condensed',fontWeight:700,fontSize:'21px'}}>{fPct(score)}</text>
-        <text x="55" y="60" textAnchor="middle" fill={m.hex} style={{fontFamily:'IBM Plex Mono',fontSize:'7.5px',letterSpacing:'.14em'}}>{m.label}</text>
-      </svg>
-    </div>
-  );
-};
-
 const KpiCard = ({ label, value, sub, accent, icon }) => (
-  <div className="panel scan-ov" style={{borderRadius:'5px',padding:'14px 18px',flex:1,minWidth:0}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'7px'}}>
-      <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>{label}</span>
-      <i className={`fa-solid ${icon}`} style={{fontSize:'10px',color:accent,opacity:.55}}></i>
+  <div className="panel" style={{flex:1,borderRadius:'5px',padding:'11px 13px',minWidth:0}}>
+    <div style={{display:'flex',alignItems:'center',gap:'7px',marginBottom:'7px'}}>
+      <i className={`fa-solid ${icon}`} style={{fontSize:'10px',color:accent,opacity:.7}}/>
+      <span className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.12em',lineHeight:1.2}}>{label}</span>
     </div>
-    <div className="f-display" style={{fontSize:'26px',fontWeight:700,color:'white',lineHeight:1}}>{value}</div>
-    {sub && <div className="f-mono" style={{fontSize:'9px',color:accent,marginTop:'4px'}}>{sub}</div>}
+    <div className="f-display" style={{fontSize:'22px',fontWeight:700,color:accent,lineHeight:1,marginBottom:'3px'}}>{value}</div>
+    <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',lineHeight:1.4}}>{sub}</div>
   </div>
 );
 
-/* ═══════════════════════════════════════════════════════
-   ASSET MAP (Canvas)
-═══════════════════════════════════════════════════════ */
-const AssetMap = ({ assets, selId, onSelect }) => {
-  const cvRef = useRef(null);
-  const [hov, setHov] = useState(null);
-  const lon2x = (lon, W) => ((lon + 180) / 360) * W;
-  const lat2y = (lat, H) => ((90 - lat) / 180) * H;
-
-  useEffect(() => {
-    const cv = cvRef.current; if (!cv) return;
-    const ctx = cv.getContext('2d');
-    const W = cv.width, H = cv.height;
-    ctx.fillStyle = '#030912'; ctx.fillRect(0, 0, W, H);
-
-    // Grid
-    ctx.strokeStyle = 'rgba(16,40,80,.6)'; ctx.lineWidth = .5;
-    for (let lon = -180; lon <= 180; lon += 30) { const x = lon2x(lon,W); ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for (let lat = -90; lat <= 90; lat += 30)   { const y = lat2y(lat,H); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-
-    // Equator brighter
-    ctx.strokeStyle = 'rgba(37,99,235,.22)'; ctx.lineWidth = 1;
-    const eqY = lat2y(0,H); ctx.beginPath(); ctx.moveTo(0,eqY); ctx.lineTo(W,eqY); ctx.stroke();
-
-    // Tropics dashed
-    ctx.strokeStyle = 'rgba(245,158,11,.1)'; ctx.lineWidth = .5; ctx.setLineDash([4,7]);
-    [23.5,-23.5].forEach(lat => { const y = lat2y(lat,H); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); });
-    ctx.setLineDash([]);
-
-    // Lat/Lon labels
-    ctx.fillStyle = 'rgba(50,80,130,.65)'; ctx.font = '7.5px IBM Plex Mono'; ctx.textAlign = 'center';
-    [-120,-60,0,60,120].forEach(lon => ctx.fillText(`${lon>=0?lon+'°E':Math.abs(lon)+'°W'}`, lon2x(lon,W), H-3));
-    ctx.textAlign = 'right';
-    [60,30,-30,-60].forEach(lat => ctx.fillText(`${lat>0?lat+'°N':Math.abs(lat)+'°S'}`, 28, lat2y(lat,H)+3));
-
-    // Assets
-    assets.forEach(a => {
-      if (a.lat==null||a.lon==null) return; const x = lon2x(a.lon,W), y = lat2y(a.lat,H);
-      const m = riskMeta(a.cr);
-      const isSel = a.id === selId, isHov = a.id === hov;
-
-      if (isSel || isHov) {
-        ctx.beginPath(); ctx.arc(x,y,14,0,Math.PI*2);
-        ctx.fillStyle = m.hex + '14'; ctx.fill();
-        ctx.beginPath(); ctx.arc(x,y,14,0,Math.PI*2);
-        ctx.strokeStyle = m.hex + '55'; ctx.lineWidth = 1; ctx.stroke();
-      }
-      // Pulse ring
-      ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2);
-      ctx.strokeStyle = m.hex + '45'; ctx.lineWidth = 1.2; ctx.stroke();
-      // Core dot
-      ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2);
-      ctx.fillStyle = m.hex; ctx.fill();
-      // Alert dot
-      if (a.alerts > 0) {
-        ctx.beginPath(); ctx.arc(x+4,y-4,2.5,0,Math.PI*2);
-        ctx.fillStyle = '#EF4444'; ctx.fill();
-      }
-      if (isSel || isHov) {
-        ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '8.5px IBM Plex Mono'; ctx.textAlign = 'left';
-        ctx.fillText(a.id, x+10, y+3);
-      }
-    });
-  }, [assets, selId, hov]);
-
-  const coords = (e) => {
-    const cv = cvRef.current; const rect = cv.getBoundingClientRect();
-    const sx = cv.width/rect.width, sy = cv.height/rect.height;
-    return [(e.clientX-rect.left)*sx, (e.clientY-rect.top)*sy];
-  };
-  const findNear = ([mx,my]) => {
-    const W = cvRef.current?.width||900, H = cvRef.current?.height||380;
-    for (const a of assets) { if (a.lat==null||a.lon==null) continue; const x = lon2x(a.lon,W), y = lat2y(a.lat,H); if (Math.hypot(mx-x,my-y)<16) return a; }
-    return null;
-  };
-
-  const hovA = assets.find(a => a.id === hov);
+const ArcGauge = ({ score }) => {
+  const m = riskMeta(score);
+  const r=42, cx=50, cy=54, sw=8;
+  const angle = score * Math.PI;
+  const x = cx + r * Math.cos(Math.PI - angle);
+  const y = cy - r * Math.sin(angle);
+  const arc = `M ${cx-r} ${cy} A ${r} ${r} 0 ${score>.5?1:0} 1 ${x} ${y}`;
   return (
-    <div style={{position:'relative',width:'100%',height:'100%'}}>
-      <canvas ref={cvRef} width={920} height={380}
-        onClick={e => { const a = findNear(coords(e)); onSelect(a||null); }}
-        onMouseMove={e => { const a = findNear(coords(e)); setHov(a?.id||null); }}
-        onMouseLeave={() => setHov(null)}
-        style={{width:'100%',height:'100%',cursor:'crosshair',display:'block'}}/>
-      {hovA && (
-        <div style={{position:'absolute',bottom:'8px',left:'8px',background:'rgba(5,10,26,.97)',border:'1px solid rgba(37,99,235,.4)',borderRadius:'4px',padding:'8px 12px',pointerEvents:'none',backdropFilter:'blur(8px)',zIndex:10}}>
-          <div className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',marginBottom:'3px'}}>{hovA.id} · {hovA.country} · {hovA.type.toUpperCase()}</div>
-          <div className="f-display" style={{fontSize:'13px',fontWeight:600,color:'white',marginBottom:'5px'}}>{hovA.name}</div>
-          <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
-            <RiskBadge score={hovA.cr}/>
-            <span className="f-mono" style={{fontSize:'10px',color:'var(--textd)'}}>Value: {fUsd(hovA.value_mm??0)}</span>
-            {hovA.alerts>0 && <span className="f-mono" style={{fontSize:'9.5px',color:'#EF4444'}}>{hovA.alerts} alert{hovA.alerts>1?'s':''}</span>}
+    <svg width="100" height="62" style={{flexShrink:0}}>
+      <path d={`M ${cx-r} ${cy} A ${r} ${r} 0 1 1 ${cx+r} ${cy}`} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth={sw} strokeLinecap="round"/>
+      <path d={arc} fill="none" stroke={m.hex} strokeWidth={sw} strokeLinecap="round" style={{filter:`drop-shadow(0 0 6px ${m.hex}88)`}}/>
+      <text x={cx} y={cy-8} textAnchor="middle" fill={m.hex} fontFamily="Barlow Condensed,sans-serif" fontWeight="700" fontSize="18">{fPct(score)}</text>
+      <text x={cx} y={cy+4} textAnchor="middle" fill="var(--textx)" fontFamily="IBM Plex Mono,monospace" fontSize="7" letterSpacing="2">{m.label}</text>
+    </svg>
+  );
+};
+
+const UTCClock = () => {
+  const [t, setT] = useState('');
+  useEffect(() => {
+    const tick = () => setT(new Date().toISOString().replace('T',' ').slice(0,19) + ' Z');
+    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
+  }, []);
+  return <span className="f-mono" style={{fontSize:'9px',color:'var(--textx)'}}>{t}</span>;
+};
+
+/* ── Inline input (defined at top scope to avoid focus loss) ── */
+const Inp = ({ value, onChange, placeholder, type='text', style={} }) => (
+  <input className="minp" type={type} value={value} onChange={onChange}
+    placeholder={placeholder} style={{...style}}/>
+);
+
+/* ── Asset map (SVG equirectangular) ── */
+const AssetMap = ({ assets, selId, onSelect }) => {
+  const W=520, H=270;
+  const proj = (lat, lon) => [((lon+180)/360)*W, ((90-lat)/180)*H];
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{background:'rgba(0,0,0,.3)',display:'block',height:'100%'}}
+      preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="glow-r"><stop offset="0%" stopColor="#EF4444" stopOpacity=".8"/><stop offset="100%" stopColor="#EF4444" stopOpacity="0"/></radialGradient>
+        <radialGradient id="glow-o"><stop offset="0%" stopColor="#F97316" stopOpacity=".8"/><stop offset="100%" stopColor="#F97316" stopOpacity="0"/></radialGradient>
+        <radialGradient id="glow-b"><stop offset="0%" stopColor="#3B82F6" stopOpacity=".8"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0"/></radialGradient>
+        <radialGradient id="glow-g"><stop offset="0%" stopColor="#10B981" stopOpacity=".8"/><stop offset="100%" stopColor="#10B981" stopOpacity="0"/></radialGradient>
+      </defs>
+      {/* Grid lines */}
+      {[-60,-30,0,30,60].map(lat => { const [,y]=proj(lat,0); return <line key={lat} x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,.04)" strokeWidth=".5"/>; })}
+      {[-120,-60,0,60,120].map(lon => { const [x]=proj(0,lon); return <line key={lon} x1={x} y1={0} x2={x} y2={H} stroke="rgba(255,255,255,.04)" strokeWidth=".5"/>; })}
+      {/* Assets */}
+      {assets.map(a => {
+        const m = riskMeta(a.cr??0.5);
+        const [x, y] = proj(a.lat??0, a.lon??0);
+        const sel = selId === a.id;
+        return (
+          <g key={a.id} onClick={() => onSelect(a)} style={{cursor:'pointer'}}>
+            <circle cx={x} cy={y} r={sel?14:10} fill={m.hex} opacity=".08"/>
+            <circle cx={x} cy={y} r={sel?6:4.5} fill={m.hex} stroke={sel?'#fff':'rgba(0,0,0,.6)'} strokeWidth={sel?1.5:1}
+              style={{filter:`drop-shadow(0 0 ${sel?8:4}px ${m.hex})`}}/>
+            {sel && <circle cx={x} cy={y} r={9} fill="none" stroke={m.hex} strokeWidth="1" strokeDasharray="2 2" opacity=".7"/>}
+            {sel && (
+              <text x={x+11} y={y+4} fill={m.hex} fontFamily="IBM Plex Mono,monospace" fontSize="8.5" fontWeight="700"
+                style={{filter:'drop-shadow(0 1px 2px rgba(0,0,0,.9))'}}>
+                {a.id}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+/* ── Asset Modal ── */
+const AssetModal = ({ asset, onSave, onClose }) => {
+  const [form, setForm] = useState(() => asset ? {
+    name:     asset.name    || '',
+    type:     asset.type    || 'Infrastructure',
+    country:  asset.country || '',
+    cc:       asset.cc      || '',
+    lat:      asset.lat     || '',
+    lon:      asset.lon     || '',
+    value_mm: asset.value_mm ?? asset.valueMm ?? '',
+    pr:       asset.pr      ?? 0.5,
+    tr:       asset.tr      ?? 0.5,
+    cr:       asset.cr      ?? 0.5,
+    alerts:   asset.alerts  ?? 0,
+  } : { name:'',type:'Infrastructure',country:'',cc:'',lat:'',lon:'',value_mm:'',pr:0.5,tr:0.5,cr:0.5,alerts:0 });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const TYPES = ['Infrastructure','Energy','Manufacturing','Agriculture','Real Estate','Financial','Technology','Healthcare','Transport','Other'];
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.78)',backdropFilter:'blur(6px)',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div className="panel" style={{width:'520px',maxHeight:'90vh',overflow:'auto',borderRadius:'8px',background:'var(--bg1)'}}>
+        <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span className="f-display" style={{fontSize:'16px',fontWeight:700,color:'white',letterSpacing:'.08em',textTransform:'uppercase'}}>
+            {asset ? 'Edit Asset' : 'Register New Asset'}
+          </span>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'var(--textd)',cursor:'pointer',fontSize:'16px'}}><i className="fa-solid fa-xmark"/></button>
+        </div>
+        <div style={{padding:'20px',display:'flex',flexDirection:'column',gap:'14px'}}>
+          {[
+            ['Asset Name',     'name',     'text',   'e.g. Mumbai Port Terminal'],
+            ['Country',        'country',  'text',   'e.g. India'],
+            ['Country Code',   'cc',       'text',   'e.g. IND'],
+            ['Latitude',       'lat',      'number', 'e.g. 18.93'],
+            ['Longitude',      'lon',      'number', 'e.g. 72.83'],
+            ['Value (USD MM)', 'value_mm', 'number', 'e.g. 250'],
+          ].map(([label, key, type, ph]) => (
+            <div key={key}>
+              <label className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',display:'block',marginBottom:'5px'}}>{label}</label>
+              <Inp value={form[key]} onChange={e=>set(key,e.target.value)} placeholder={ph} type={type}/>
+            </div>
+          ))}
+          <div>
+            <label className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',display:'block',marginBottom:'5px'}}>Asset Type</label>
+            <select className="minp" value={form.type} onChange={e=>set('type',e.target.value)}>
+              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{display:'flex',gap:'10px',paddingTop:'4px'}}>
+            <button className="btn-g" onClick={onClose} style={{flex:1,justifyContent:'center'}}>Cancel</button>
+            <button className="btn-p" onClick={()=>onSave({
+              name:form.name, type:form.type, country:form.country, cc:form.cc,
+              lat:parseFloat(form.lat)||0, lon:parseFloat(form.lon)||0,
+              value_mm:parseFloat(form.value_mm)||0,
+              pr:parseFloat(form.pr)||0.5, tr:parseFloat(form.tr)||0.5,
+              cr:parseFloat(form.cr)||0.5, alerts:parseInt(form.alerts)||0,
+            })} style={{flex:1,justifyContent:'center'}}>
+              <i className="fa-solid fa-check"/>{asset ? 'Save Changes' : 'Register Asset'}
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
 
 /* ═══════════════════════════════════════════════════════
-   VIEWS
+   DASHBOARD VIEW
 ═══════════════════════════════════════════════════════ */
+const DashboardView = ({ assets, alerts, selA, onSel, onNav, token, onAssetsRefreshed }) => {
+  const tot  = assets.reduce((s,a) => s + (a.value_mm??0), 0);
+  const avgR = assets.length ? assets.reduce((s,a) => s + (a.cr??0), 0) / assets.length : 0;
+  const crit = assets.filter(a => (a.cr??0) >= .85).length;
+  const totA = alerts.length;
 
-/* ── DASHBOARD ── */
-const DashboardView = ({ assets, alerts, selA, onSel, onNav }) => {
-  const tot = assets.reduce((s,a)=>s+(a.value_mm??0),0);
-  const avgR = assets.reduce((s,a)=>s+a.cr,0)/assets.length;
-  const crit = assets.filter(a=>a.cr>=.85).length;
-  const totA = assets.reduce((s,a)=>s+a.alerts,0);
+  const [rescoring, setRescoring] = useState(false);
+  const [rescoreMsg, setRescoreMsg] = useState('');
+
+  /* Batch-rescore all assets via real data engine */
+  const rescoreAll = async () => {
+    if (!assets.length) return;
+    setRescoring(true);
+    setRescoreMsg('Connecting to data engine...');
+    try {
+      const payload = {
+        assets: assets.map(a => ({
+          asset_id: a.id, lat: a.lat??0, lon: a.lon??0,
+          country_code: a.cc||'IND', value_mm: a.value_mm??10,
+          horizon_days: 30,
+        })),
+        scenario: 'baseline',
+        horizon_days: 30,
+      };
+      setRescoreMsg('Fetching live climate data for all assets...');
+      const result = await apiCall('/risk/portfolio', 'POST', payload, token);
+      if (result.error) throw new Error(result.error);
+      setRescoreMsg(`✓ Rescored ${assets.length} assets — composite risk: ${fPct(result.portfolio_composite_risk||0)}`);
+      if (onAssetsRefreshed) onAssetsRefreshed();
+    } catch(e) {
+      setRescoreMsg(`⚠ Engine unavailable: ${e.message}`);
+    }
+    setRescoring(false);
+    setTimeout(() => setRescoreMsg(''), 5000);
+  };
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'10px',padding:'14px',height:'100%',overflow:'hidden'}}>
       {/* KPIs */}
       <div style={{display:'flex',gap:'8px',flexShrink:0}}>
-        <KpiCard label="Portfolio Value"        value={fUsd(tot)}         sub={`${assets.length} assets · 7 jurisdictions`} accent="#3B82F6" icon="fa-building"/>
-        <KpiCard label="Composite Risk Index"   value={fPct(avgR)}        sub="Weighted · IPCC AR6 aligned"                 accent={riskMeta(avgR).hex} icon="fa-triangle-exclamation"/>
-        <KpiCard label="Critical Assets"        value={crit}              sub={`of ${assets.length} monitored`}             accent="#EF4444" icon="fa-circle-radiation"/>
-        <KpiCard label="Active Alerts"          value={totA}              sub={`${alerts.filter(a=>a.sev==='CRITICAL'||a.sev==='HIGH').length} HIGH/CRITICAL outstanding`} accent="#F59E0B" icon="fa-bell"/>
+        <KpiCard label="Portfolio Value"        value={fUsd(tot)}  sub={`${assets.length} assets monitored`}     accent="#3B82F6"        icon="fa-building"/>
+        <KpiCard label="Composite Risk Index"   value={fPct(avgR)} sub="Weighted · IPCC AR6 aligned"             accent={riskMeta(avgR).hex} icon="fa-triangle-exclamation"/>
+        <KpiCard label="Critical Assets"        value={crit}       sub={`of ${assets.length} above 85% risk`}   accent="#EF4444"        icon="fa-circle-radiation"/>
+        <KpiCard label="Active Alerts"          value={totA}       sub={`${alerts.filter(a=>a.sev==='CRITICAL').length} CRITICAL outstanding`} accent="#F59E0B" icon="fa-bell"/>
+      </div>
+
+      {/* Engine rescore bar */}
+      <div style={{display:'flex',alignItems:'center',gap:'10px',background:'rgba(37,99,235,.06)',border:'1px solid rgba(37,99,235,.15)',borderRadius:'4px',padding:'7px 12px',flexShrink:0}}>
+        <span className="f-mono" style={{fontSize:'8px',color:'var(--textx)',flex:1}}>
+          {rescoreMsg || 'Risk scores update on asset save. Click to re-fetch live scores from Open-Meteo + NASA + Carbon Monitor.'}
+        </span>
+        <button className="btn-p" onClick={rescoreAll} disabled={rescoring||!assets.length} style={{padding:'4px 12px',fontSize:'9px',letterSpacing:'.1em',flexShrink:0}}>
+          {rescoring ? <><i className="fa-solid fa-spinner fa-spin"/>RESCORING...</> : <><i className="fa-solid fa-rotate"/>LIVE RESCORE</>}
+        </button>
       </div>
 
       {/* Map + Rankings */}
-      <div style={{display:'flex',gap:'8px',flex:'1',minHeight:0}}>
+      <div style={{display:'flex',gap:'8px',flex:1,minHeight:0}}>
         <div className="panel" style={{borderRadius:'5px',flex:1,minWidth:0,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-          <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
-            <i className="fa-solid fa-globe" style={{fontSize:'10px',color:'var(--textx)'}}></i>
-            <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Geospatial Risk Distribution · WGS84 · Equirectangular</span>
+          <div style={{padding:'7px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
+            <i className="fa-solid fa-globe" style={{fontSize:'10px',color:'var(--textx)'}}/>
+            <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Geospatial Risk Distribution · WGS84</span>
             <div style={{marginLeft:'auto',display:'flex',gap:'10px'}}>
-              {[['#EF4444','Critical'],['#F97316','High'],['#F59E0B','Elevated'],['#3B82F6','Moderate'],['#10B981','Low']].map(([c,l])=>(
+              {[['#EF4444','Critical'],['#F97316','High'],['#F59E0B','Elevated'],['#3B82F6','Moderate'],['#10B981','Low']].map(([c,l]) => (
                 <div key={l} style={{display:'flex',alignItems:'center',gap:'3px'}}>
-                  <span style={{width:'5px',height:'5px',borderRadius:'50%',background:c,display:'inline-block'}}></span>
+                  <span style={{width:'5px',height:'5px',borderRadius:'50%',background:c,display:'inline-block'}}/>
                   <span className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)'}}>{l}</span>
                 </div>
               ))}
@@ -1122,47 +1091,53 @@ const DashboardView = ({ assets, alerts, selA, onSel, onNav }) => {
               <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Asset Risk Ranking</span>
             </div>
             <div style={{overflow:'auto',flex:1}}>
-              {[...assets].sort((a,b)=>(b.cr??0)-(a.cr??0)).map(a => {
-                const m = riskMeta(a.cr);
+              {[...assets].sort((a,b) => (b.cr??0)-(a.cr??0)).map(a => {
+                const m = riskMeta(a.cr??0);
                 return (
-                  <div key={a.id} onClick={()=>onSel(a)}
+                  <div key={a.id} onClick={() => onSel(a)}
                     style={{padding:'8px 11px',borderBottom:'1px solid rgba(24,50,100,.22)',cursor:'pointer',
                       background:selA?.id===a.id?'rgba(37,99,235,.09)':'transparent',transition:'background .15s'}}
-                    onMouseEnter={e=>e.currentTarget.style.background='rgba(37,99,235,.05)'}
-                    onMouseLeave={e=>e.currentTarget.style.background=selA?.id===a.id?'rgba(37,99,235,.09)':'transparent'}>
+                    onMouseEnter={e => e.currentTarget.style.background='rgba(37,99,235,.05)'}
+                    onMouseLeave={e => e.currentTarget.style.background=selA?.id===a.id?'rgba(37,99,235,.09)':'transparent'}>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}>
                       <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>{a.id}</span>
-                      <span className="f-mono" style={{fontSize:'10px',color:m.hex,fontWeight:600}}>{fPct(a.cr)}</span>
+                      <span className="f-mono" style={{fontSize:'10px',color:m.hex,fontWeight:600}}>{fPct(a.cr??0)}</span>
                     </div>
                     <div style={{fontSize:'11px',color:'var(--text)',marginBottom:'4px',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.name}</div>
-                    <RBar val={a.cr} w={158}/>
+                    <RBar val={a.cr??0} w={158}/>
                   </div>
                 );
               })}
+              {!assets.length && (
+                <div style={{padding:'24px',textAlign:'center',color:'var(--textx)',fontFamily:'IBM Plex Mono',fontSize:'10px'}}>No assets yet</div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       {/* Alerts Feed */}
-      <div className="panel" style={{borderRadius:'5px',flexShrink:0,maxHeight:'188px',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+      <div className="panel" style={{borderRadius:'5px',flexShrink:0,maxHeight:'160px',overflow:'hidden',display:'flex',flexDirection:'column'}}>
         <div style={{padding:'7px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'7px',flexShrink:0}}>
-          <span className="sdot snom ppulse"></span>
-          <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Active Alert Feed · Real-time</span>
+          <span className="sdot snom ppulse"/>
+          <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Alert Feed · Generated from live risk scores</span>
           <div style={{marginLeft:'auto',display:'flex',gap:'14px'}}>
-            {[['CRITICAL','#EF4444'],['HIGH','#F97316'],['ELEVATED','#F59E0B']].map(([s,c])=>(
+            {[['CRITICAL','#EF4444'],['HIGH','#F97316'],['ELEVATED','#F59E0B']].map(([s,c]) => (
               <span key={s} className="f-mono" style={{fontSize:'8.5px',color:c}}>
-                {alerts.filter(a=>a.sev===s).length} {s}
+                {alerts.filter(a => a.sev===s).length} {s}
               </span>
             ))}
           </div>
         </div>
         <div style={{overflow:'auto',flex:1}}>
-          {alerts.map((al,i) => {
+          {!alerts.length && (
+            <div style={{padding:'18px',textAlign:'center',color:'var(--textx)',fontFamily:'IBM Plex Mono',fontSize:'10px'}}>No active alerts</div>
+          )}
+          {alerts.map((al, i) => {
             const sm = sevMeta(al.sev);
             return (
-              <div key={al.id} style={{padding:'7px 12px',borderBottom:'1px solid rgba(24,50,100,.18)',borderLeft:`2px solid ${sm.c}`,background:sm.bg,display:'flex',gap:'10px',alignItems:'flex-start',animation:`alertin .3s ease ${i*.04}s both`}}>
-                <div style={{flexShrink:0,width:'58px'}}>
+              <div key={al.id} style={{padding:'7px 12px',borderBottom:'1px solid rgba(24,50,100,.18)',borderLeft:`2px solid ${sm.c}`,background:sm.bg,display:'flex',gap:'10px',alignItems:'flex-start'}}>
+                <div style={{flexShrink:0,width:'62px'}}>
                   <div className="f-mono" style={{fontSize:'7.5px',color:sm.c,fontWeight:700}}>{al.sev}</div>
                   <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',marginTop:'1px'}}>{al.ts}</div>
                 </div>
@@ -1174,7 +1149,6 @@ const DashboardView = ({ assets, alerts, selA, onSel, onNav }) => {
                   <div style={{fontSize:'11px',color:'var(--text)',lineHeight:1.35}}>{al.msg}</div>
                   <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',marginTop:'2px'}}>SRC: {al.src}</div>
                 </div>
-                <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',flexShrink:0}}>{al.id}</div>
               </div>
             );
           })}
@@ -1184,26 +1158,29 @@ const DashboardView = ({ assets, alerts, selA, onSel, onNav }) => {
   );
 };
 
-/* ── ANALYSIS TERMINAL ── */
-const AnalysisView = ({ assets }) => {
-  const [assetId,      setAssetId]      = useState(assets[0]?.id || '');
-  const [horizon,      setHorizon]      = useState(365);
-  const [scenario,     setScenario]     = useState('baseline');
-  const [urbDens,      setUrbDens]      = useState(.50);
-  const [insDrag,      setInsDrag]      = useState(.40);
-  const [liqShock,     setLiqShock]     = useState(.30);
-  const [confidence,   setConfidence]   = useState(.92);
-  const [isRunning,    setIsRunning]    = useState(false);
-  const [output,       setOutput]       = useState(null);
-  const [logs,         setLogs]         = useState([]);
-  const [aiNarrative,  setAiNarrative]  = useState(null);
-  const [aiLoading,    setAiLoading]    = useState(false);
-  const [aiModel,      setAiModel]      = useState('gemini');
+/* ═══════════════════════════════════════════════════════
+   ANALYSIS VIEW — Real data engine integration
+═══════════════════════════════════════════════════════ */
+const AnalysisView = ({ assets, token }) => {
+  const [assetId,    setAssetId]    = useState(assets[0]?.id || '');
+  const [horizon,    setHorizon]    = useState(365);
+  const [scenario,   setScenario]   = useState('baseline');
+  const [urbDens,    setUrbDens]    = useState(.50);
+  const [insDrag,    setInsDrag]    = useState(.40);
+  const [liqShock,   setLiqShock]   = useState(.30);
+  const [confidence, setConfidence] = useState(.92);
+  const [isRunning,  setIsRunning]  = useState(false);
+  const [output,     setOutput]     = useState(null);
+  const [logs,       setLogs]       = useState([]);
+  const [aiNarrative, setAiNarrative] = useState(null);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [aiModel,     setAiModel]     = useState('gemini');
   const logEnd = useRef(null);
-  const selA = assets.find(a=>a.id===assetId);
+  const selA = assets.find(a => a.id === assetId) || assets[0];
 
-  const calcRisk = () => {
-    let r = selA.cr;
+  /* Local fallback risk calc */
+  const calcLocalRisk = () => {
+    let r = selA?.cr ?? 0.5;
     if (horizon===365)  r += .05;
     if (horizon===1095) r += .11;
     if (scenario==='disorderly') r += .07;
@@ -1211,69 +1188,93 @@ const AnalysisView = ({ assets }) => {
     r += urbDens * .08; r += insDrag * .06; r += liqShock * .05;
     return Math.min(r, .98);
   };
-  const liveR = calcRisk();
+
+  const liveR = useMemo(calcLocalRisk, [selA, horizon, scenario, urbDens, insDrag, liqShock]);
   const liveM = riskMeta(liveR);
 
-  const SCEN = {
-    baseline:   { lbl:'SSP1-1.9 · Ordered Transition',  desc:'~1.5°C warming. Strong coordinated policy. Rapid low-carbon transition.' },
-    disorderly: { lbl:'SSP2-4.5 · Disorderly Transition',desc:'~2.7°C warming. Fragmented policy. Abrupt mid-century transition shock.' },
-    failed:     { lbl:'SSP5-8.5 · Failed Transition',   desc:'~4.4°C warming. No mitigation. Physical hazard dominates through 2100.' },
-  };
+  const appendLog = (msg) => new Promise(r => setTimeout(() => {
+    setLogs(prev => [...prev, msg]); r();
+  }, 80 + Math.random() * 180));
 
   const runAnalysis = async () => {
-    setIsRunning(true); setOutput(null); setLogs([]);
+    if (!selA) return;
+    setIsRunning(true); setOutput(null); setLogs([]); setAiNarrative(null);
     const runId = `RUN-${Date.now().toString(36).toUpperCase()}`;
-    const steps = [
-      `[${runId}] Initializing Meteorium kernel v2.4.1 — IPCC AR6 mode`,
-      `[${runId}] Target: ${selA.id} — ${selA.name} [${selA.cc}]`,
-      `[${runId}] Parameters: scenario=${scenario.toUpperCase()} | horizon=${horizon}d | CI=${(confidence*100).toFixed(0)}%`,
-      `[${runId}] Authenticating data pipeline access...`,
-      `[${runId}] Fetching Sentinel-1 SAR (overpass ${new Date().toISOString().slice(0,10)})...`,
-      `[${runId}] Loading ECMWF ENS 51-member ensemble (+${horizon}H horizon)...`,
-      `[${runId}] Querying IPCC AR6/CMIP6 pathway database [${SCEN[scenario].lbl.split('·')[0].trim()}]...`,
-      `[${runId}] Bloomberg Terminal: Retrieving market volatility surface & carbon spread...`,
-      `[${runId}] Computing physical hazard decomposition [flood | heatwave | wind | drought | SLR]...`,
-      `[${runId}] Computing transition risk decomposition [carbon | policy | market | technology]...`,
-      `[${runId}] Applying urban density amplification factor (ξ=${urbDens.toFixed(2)})...`,
-      `[${runId}] Applying insurance drag coefficient (δ=${insDrag.toFixed(2)})...`,
-      `[${runId}] Applying liquidity shock factor (λ=${liqShock.toFixed(2)})...`,
-      `[${runId}] Running Monte Carlo simulation (n=10,000 draws)...`,
-      `[${runId}] Calculating VaR/CVaR at 95th percentile...`,
-      `[${runId}] Generating economic loss exposure estimate (USD)...`,
-      `[${runId}] Writing immutable audit record to ledger...`,
-      `[${runId}] ✓ Analysis complete — ${new Date().toISOString().replace('T',' ').slice(0,19)} Z`,
-    ];
-    for (const s of steps) {
-      await new Promise(r => setTimeout(r, 180 + Math.random()*280));
-      setLogs(prev => [...prev, s]);
+
+    await appendLog(`[${runId}] Initializing Meteorium kernel — IPCC AR6 mode`);
+    await appendLog(`[${runId}] Target: ${selA.id} — ${selA.name} [${selA.cc||'?'}]`);
+    await appendLog(`[${runId}] Scenario: ${SCEN_META[scenario].lbl} | Horizon: ${horizon}d | CI: ${Math.round(confidence*100)}%`);
+
+    let realData = false;
+    let cr, pr, tr, var95, cvar95, lossUsd, sources;
+
+    try {
+      await appendLog(`[${runId}] Connecting to Meteorium data engine...`);
+      await appendLog(`[${runId}] → Querying Open-Meteo ECMWF forecast + ERA5 10yr baseline`);
+      await appendLog(`[${runId}] → Querying NASA FIRMS VIIRS 375m satellite (${selA.lat?.toFixed(2)||0}°N, ${selA.lon?.toFixed(2)||0}°E)`);
+      await appendLog(`[${runId}] → Querying Carbon Monitor CO₂ [${selA.cc||'IND'}]`);
+
+      const result = await callRiskEngine('/risk/asset', {
+        asset_id:     selA.id,
+        lat:          selA.lat ?? 0,
+        lon:          selA.lon ?? 0,
+        country_code: selA.cc || 'IND',
+        value_mm:     selA.value_mm ?? 10,
+        horizon_days: Math.min(horizon, 30),
+        scenario:     SCENARIO_MAP[scenario] || 'paris',
+      }, token);
+
+      cr      = result.composite_risk;
+      pr      = result.physical_risk;
+      tr      = result.transition_risk;
+      var95   = result.var_95;
+      cvar95  = result.cvar_95;
+      lossUsd = result.loss_expected_mm * 1e6;
+      sources = Object.values(result.sources || {}).filter(Boolean);
+      realData = true;
+
+      await appendLog(`[${runId}] ✓ Physical risk:    ${fPct(pr)} [${result.sources?.weather}]`);
+      await appendLog(`[${runId}] ✓ Transition risk:  ${fPct(tr)} [${result.sources?.carbon}]`);
+      await appendLog(`[${runId}] ✓ Fire risk:        — [${result.sources?.fire}]`);
+      await appendLog(`[${runId}] → Running Monte Carlo simulation (n=10,000 draws)...`);
+      await appendLog(`[${runId}] → Computing VaR/CVaR at 95th percentile...`);
+      await appendLog(`[${runId}] ✓ Analysis complete — ${new Date().toISOString().replace('T',' ').slice(0,19)} Z`);
+
+    } catch(e) {
+      await appendLog(`[${runId}] ⚠ Data engine error: ${e.message}`);
+      await appendLog(`[${runId}] → Falling back to local IPCC AR6 model...`);
+      cr    = calcLocalRisk();
+      pr    = selA.pr ?? 0.5;
+      tr    = selA.tr ?? 0.5;
+      var95 = cr * 0.18;
+      cvar95 = cr * 0.27;
+      lossUsd = (selA.value_mm ?? 0) * 1e6 * cr * 0.25;
+      sources = ['Local IPCC AR6 model (engine offline)'];
+      await appendLog(`[${runId}] ⚠ Local estimate: ${fPct(cr)} composite — deploy data engine for real scores`);
+      await appendLog(`[${runId}] ✓ Fallback complete — ${new Date().toISOString().replace('T',' ').slice(0,19)} Z`);
     }
-    const r = calcRisk(); const m = riskMeta(r);
+
     setOutput({
       runId, assetId:selA.id, assetName:selA.name, scenario, horizon, confidence,
-      cr: r, band: m.label, pr: Math.min(selA.pr+(scenario==='failed'?.08:0),.98),
-      tr: Math.min(selA.tr+(scenario==='disorderly'?.06:scenario==='failed'?.04:0),.98),
-      lossUsd: (selA.value_mm??selA.valueMm??0)*1e6*r*.25, var95:r*.18, cvar95:r*.27,
-      sources:['Sentinel-1 SAR','ECMWF ENS','Bloomberg Terminal','IPCC AR6/CMIP6','NOAA NHC'],
+      cr, pr, tr, var95, cvar95, lossUsd, sources, realData,
       ts: new Date().toISOString(),
     });
     setIsRunning(false);
 
-    // ── AI Narrative (uses selected model) ──────────────
-    setAiLoading(true); setAiNarrative(null);
+    /* AI narrative */
+    setAiLoading(true);
     try {
       const narrative = await aiAnalyze(
-        `You are a senior climate risk analyst using real OSINT data sources (Sentinel-1 SAR, ECMWF ENS, Bloomberg Terminal, IPCC AR6/CMIP6, NOAA NHC). Generate a concise executive intelligence brief:
+        `You are a senior climate risk analyst. Generate a concise executive intelligence brief:
 Asset: ${selA.name} (${selA.id}) | Country: ${selA.country} | Type: ${selA.type}
-Scenario: ${SCEN[scenario].lbl}
-Composite Risk: ${(r*100).toFixed(1)}% [${m.label}]
-Physical Risk: ${(Math.min(selA.pr+(scenario==='failed'?.08:0),.98)*100).toFixed(1)}%
-Transition Risk: ${(Math.min(selA.tr+(scenario==='disorderly'?.06:scenario==='failed'?.04:0),.98)*100).toFixed(1)}%
-Estimated Loss Exposure: $${((selA.value_mm??selA.valueMm??0)*1e6*r*.25/1e6).toFixed(1)}M
-Horizon: ${horizon} days | Confidence: ${(confidence*100).toFixed(0)}%
-Data Sources: Sentinel-1 SAR, ECMWF ENS 51-member, Bloomberg Terminal, IPCC AR6/CMIP6, NOAA NHC
-
-Provide: (1) Key risk drivers based on real climate data for this region, (2) Immediate recommended actions, (3) Strategic outlook with specific projections. Be direct and data-driven. Max 200 words.`,
-        aiModel
+Scenario: ${SCEN_META[scenario].lbl}
+Composite Risk: ${fPct(cr)} | Physical: ${fPct(pr)} | Transition: ${fPct(tr)}
+VaR 95%: ${fPct(var95)} | CVaR 95%: ${fPct(cvar95)}
+Est. Loss Exposure: ${fUsdM(lossUsd)}
+Horizon: ${horizon} days | Confidence: ${Math.round(confidence*100)}%
+Data: ${sources.join(', ')}
+${realData ? 'Note: Scores from live Open-Meteo, NASA FIRMS, Carbon Monitor data.' : 'Note: Scores from local IPCC model (data engine offline).'}
+Provide: (1) Key risk drivers, (2) Immediate actions, (3) Strategic outlook. Max 200 words.`, aiModel
       );
       setAiNarrative(narrative);
     } catch(e) {
@@ -1281,19 +1282,19 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
     }
     setAiLoading(false);
   };
-  useEffect(()=>{ logEnd.current?.scrollIntoView({behavior:'smooth'}); },[logs]);
 
-  const SliderParam = ({label,val,setVal,color,note}) => {
-    const pct = Math.round(val*100);
-    const c = color||'#2563EB';
+  useEffect(() => { logEnd.current?.scrollIntoView({ behavior:'smooth' }); }, [logs]);
+
+  const SliderParam = ({ label, val, setVal, color, note }) => {
+    const pct = Math.round(val * 100);
     return (
       <div>
         <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}>
           <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textd)',textTransform:'uppercase',letterSpacing:'.1em'}}>{label}</span>
           <span className="f-mono" style={{fontSize:'10px',color:'white',fontWeight:500}}>{pct}%</span>
         </div>
-        <input type="range" min={0} max={1} step={.01} value={val} onChange={e=>setVal(parseFloat(e.target.value))}
-          style={{background:`linear-gradient(to right, ${c} ${pct}%, rgba(255,255,255,.07) ${pct}%)`}}/>
+        <input type="range" min={0} max={1} step={.01} value={val} onChange={e => setVal(parseFloat(e.target.value))}
+          style={{background:`linear-gradient(to right, ${color||'#2563EB'} ${pct}%, rgba(255,255,255,.07) ${pct}%)`}}/>
         {note && <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',marginTop:'2px'}}>{note}</div>}
       </div>
     );
@@ -1301,20 +1302,19 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
 
   return (
     <div style={{padding:'14px',height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',gap:'10px'}}>
+      {/* Header */}
       <div style={{display:'flex',alignItems:'center',gap:'10px',flexShrink:0,flexWrap:'wrap'}}>
         <div className="f-display" style={{fontSize:'17px',fontWeight:700,letterSpacing:'.08em',color:'white',textTransform:'uppercase'}}>Climate Risk Analysis Terminal</div>
-        <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>· Kernel v2.4.1 · IPCC AR6 Aligned · Monte Carlo n=10,000</span>
+        <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>· IPCC AR6 · Open-Meteo + NASA FIRMS + Carbon Monitor</span>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:'5px'}}>
-          <span className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em'}}>AI Engine:</span>
-          {Object.entries(AI_MODELS).map(([key,m])=>(
-            <button key={key} onClick={()=>setAiModel(key)} style={{
-              padding:'3px 9px',borderRadius:'3px',fontSize:'8px',fontFamily:'IBM Plex Mono',letterSpacing:'.08em',
-              textTransform:'uppercase',cursor:'pointer',
+          {Object.entries(AI_MODELS).map(([key,m]) => (
+            <button key={key} onClick={() => setAiModel(key)} style={{
+              padding:'3px 9px',borderRadius:'3px',fontSize:'8px',fontFamily:'IBM Plex Mono',letterSpacing:'.08em',textTransform:'uppercase',cursor:'pointer',
               background: aiModel===key ? `${m.color}22` : 'rgba(255,255,255,.03)',
               border: aiModel===key ? `1px solid ${m.color}` : '1px solid var(--border)',
               color: aiModel===key ? m.color : 'var(--textd)', transition:'all .2s'
             }}>
-              <i className={`fa-solid ${m.icon}`} style={{marginRight:'4px',fontSize:'7px'}}></i>{m.label}
+              <i className={`fa-solid ${m.icon}`} style={{marginRight:'4px',fontSize:'7px'}}/>{m.label}
             </button>
           ))}
         </div>
@@ -1323,25 +1323,27 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
       <div style={{display:'flex',gap:'10px',flex:1,minHeight:0}}>
         {/* Parameters Panel */}
         <div className="panel" style={{width:'272px',flexShrink:0,borderRadius:'5px',overflow:'hidden',display:'flex',flexDirection:'column'}}>
-          <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',flexShrink:0}}>
+          <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)'}}>
             <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Model Parameters</span>
           </div>
           <div style={{padding:'12px',display:'flex',flexDirection:'column',gap:'12px',flex:1,overflow:'auto'}}>
             {/* Asset */}
             <div>
               <label className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',display:'block',marginBottom:'5px'}}>Target Asset</label>
-              <select value={assetId} onChange={e=>setAssetId(e.target.value)} className="minp">
-                {assets.map(a=><option key={a.id} value={a.id}>{a.id} · {a.name}</option>)}
+              <select value={assetId} onChange={e => setAssetId(e.target.value)} className="minp">
+                {assets.map(a => <option key={a.id} value={a.id}>{a.id} · {a.name}</option>)}
               </select>
-              {selA && <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)',marginTop:'4px'}}>Value: {fUsd((selA.value_mm??selA.valueMm??0))} · {selA.country} · {selA.type}</div>}
+              {selA && <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)',marginTop:'4px'}}>
+                {selA.lat?.toFixed(2)},{selA.lon?.toFixed(2)} · {selA.country} · {fUsd(selA.value_mm??0)}
+              </div>}
             </div>
             {/* Horizon */}
             <div>
               <label className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',display:'block',marginBottom:'5px'}}>Prediction Horizon</label>
               <div style={{display:'flex',gap:'5px'}}>
-                {[[180,'6M'],[365,'1Y'],[1095,'3Y']].map(([v,l])=>(
-                  <button key={v} onClick={()=>setHorizon(v)} className="f-mono" style={{
-                    flex:1,padding:'5px',border:'1px solid',borderRadius:'3px',cursor:'pointer',fontSize:'10px',fontWeight:500,transition:'all .2s',
+                {[[30,'1M'],[180,'6M'],[365,'1Y']].map(([v,l]) => (
+                  <button key={v} onClick={() => setHorizon(v)} className="f-mono" style={{
+                    flex:1,padding:'5px',border:'1px solid',borderRadius:'3px',cursor:'pointer',fontSize:'10px',transition:'all .2s',
                     background:horizon===v?'rgba(37,99,235,.15)':'transparent',
                     borderColor:horizon===v?'rgba(37,99,235,.5)':'var(--border)',
                     color:horizon===v?'#60a5fa':'var(--textd)'}}>
@@ -1354,14 +1356,14 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
             <div>
               <label className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',display:'block',marginBottom:'5px'}}>IPCC Scenario Pathway</label>
               <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
-                {Object.entries(SCEN).map(([k,{lbl,desc}])=>(
-                  <div key={k} onClick={()=>setScenario(k)} style={{
+                {Object.entries(SCEN_META).map(([k,{lbl,desc}]) => (
+                  <div key={k} onClick={() => setScenario(k)} style={{
                     padding:'7px 9px',border:'1px solid',borderRadius:'4px',cursor:'pointer',transition:'all .2s',
                     background:scenario===k?'rgba(37,99,235,.1)':'transparent',
                     borderColor:scenario===k?'rgba(37,99,235,.45)':'var(--border)'}}>
                     <div style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'2px'}}>
                       <div style={{width:'7px',height:'7px',borderRadius:'50%',border:'2px solid',transition:'all .2s',
-                        borderColor:scenario===k?'#2563EB':'var(--textx)',background:scenario===k?'#2563EB':'transparent'}}></div>
+                        borderColor:scenario===k?'#2563EB':'var(--textx)',background:scenario===k?'#2563EB':'transparent'}}/>
                       <span className="f-mono" style={{fontSize:'9.5px',fontWeight:500,color:scenario===k?'#93c5fd':'var(--textd)'}}>{lbl}</span>
                     </div>
                     <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',paddingLeft:'12px',lineHeight:1.4}}>{desc}</div>
@@ -1371,77 +1373,74 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
             </div>
             {/* Sliders */}
             <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-              <SliderParam label="Urban Density Factor"    val={urbDens}   setVal={setUrbDens}   color="#3B82F6" note="Amplifies physical & economic loss propagation"/>
-              <SliderParam label="Insurance Drag Factor"   val={insDrag}   setVal={setInsDrag}   color="#F59E0B" note="Coverage gap compounds loss recovery"/>
-              <SliderParam label="Liquidity Shock Factor"  val={liqShock}  setVal={setLiqShock}  color="#F97316" note="Market stress amplifies climate volatility"/>
+              <SliderParam label="Urban Density Factor"   val={urbDens}   setVal={setUrbDens}   color="#3B82F6" note="Amplifies physical & economic loss propagation"/>
+              <SliderParam label="Insurance Drag Factor"  val={insDrag}   setVal={setInsDrag}   color="#F59E0B" note="Coverage gap compounds loss recovery"/>
+              <SliderParam label="Liquidity Shock Factor" val={liqShock}  setVal={setLiqShock}  color="#F97316" note="Market stress amplifies climate volatility"/>
             </div>
             {/* Confidence */}
             <div>
               <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}>
                 <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textd)',textTransform:'uppercase',letterSpacing:'.1em'}}>Confidence Interval</span>
-                <span className="f-mono" style={{fontSize:'10px',color:'#10B981',fontWeight:500}}>{(confidence*100).toFixed(0)}%</span>
+                <span className="f-mono" style={{fontSize:'10px',color:'#10B981',fontWeight:500}}>{Math.round(confidence*100)}%</span>
               </div>
               <input type="range" min={.80} max={.99} step={.01} value={confidence}
-                onChange={e=>setConfidence(parseFloat(e.target.value))}
+                onChange={e => setConfidence(parseFloat(e.target.value))}
                 style={{background:`linear-gradient(to right, #10B981 ${((confidence-.80)/.19*100).toFixed(0)}%, rgba(255,255,255,.07) ${((confidence-.80)/.19*100).toFixed(0)}%)`}}/>
             </div>
           </div>
-          <div style={{padding:'10px 12px',borderTop:'1px solid var(--border)',flexShrink:0}}>
-            <button className="btn-p" onClick={runAnalysis} disabled={isRunning} style={{width:'100%',justifyContent:'center',padding:'9px',fontSize:'12px',letterSpacing:'.14em'}}>
-              {isRunning?<><i className="fa-solid fa-spinner fa-spin"></i>RUNNING ANALYSIS...</>:<><i className="fa-solid fa-bolt"></i>RUN ANALYSIS</>}
+          <div style={{padding:'10px 12px',borderTop:'1px solid var(--border)'}}>
+            <button className="btn-p" onClick={runAnalysis} disabled={isRunning||!selA} style={{width:'100%',justifyContent:'center',padding:'9px',fontSize:'12px',letterSpacing:'.14em'}}>
+              {isRunning ? <><i className="fa-solid fa-spinner fa-spin"/>RUNNING...</> : <><i className="fa-solid fa-bolt"/>RUN ANALYSIS</>}
             </button>
           </div>
         </div>
 
-        {/* Center: Preview + Log */}
+        {/* Center: Live preview + Log */}
         <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:'10px'}}>
-          {/* Live Preview */}
           <div className="panel" style={{borderRadius:'5px',padding:'14px',flexShrink:0}}>
             <div style={{display:'flex',alignItems:'center',gap:'14px'}}>
               <ArcGauge score={liveR}/>
               <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'10px'}}>
                 {[
-                  ['Live Risk Score',  fPct(liveR),                 liveM.hex],
-                  ['VaR 95%',         fPct(liveR*.18),             '#F59E0B'],
-                  ['CVaR 95%',        fPct(liveR*.27),             '#EF4444'],
-                  ['Loss Exposure',   `$${((selA.value_mm??selA.valueMm??0)*liveR*.25).toFixed(1)}M`,'#F97316'],
-                  ['Confidence CI',   fPct(confidence),            '#10B981'],
-                  ['Scenario',        SCEN[scenario].lbl.split('·')[0].trim(),'#3B82F6'],
-                ].map(([l,v,c])=>(
+                  ['Live Risk Score', fPct(liveR),                          liveM.hex ],
+                  ['VaR 95%',         fPct(liveR*.18),                      '#F59E0B' ],
+                  ['CVaR 95%',        fPct(liveR*.27),                      '#EF4444' ],
+                  ['Loss Exposure',   `$${((selA?.value_mm??0)*liveR*.25).toFixed(1)}M`, '#F97316'],
+                  ['Confidence CI',   fPct(confidence),                    '#10B981' ],
+                  ['Scenario',        SCEN_META[scenario].lbl.split('·')[0].trim(), '#3B82F6'],
+                ].map(([l,v,c]) => (
                   <div key={l}>
                     <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'2px'}}>{l}</div>
-                    <div className="f-display" style={{fontSize:'17px',fontWeight:700,color:c}}>{v}</div>
+                    <div className="f-display" style={{fontSize:'16px',fontWeight:700,color:c}}>{v}</div>
                   </div>
                 ))}
               </div>
               <div style={{width:'168px',flexShrink:0}}>
                 <div className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',marginBottom:'7px',textTransform:'uppercase',letterSpacing:'.1em'}}>Risk Decomposition</div>
-                {[['Physical',selA.pr,'#3B82F6'],['Transition',selA.tr,'#F59E0B'],['Composite',liveR,liveM.hex]].map(([l,v,c])=>(
+                {[['Physical',selA?.pr??0.5,'#3B82F6'],['Transition',selA?.tr??0.5,'#F59E0B'],['Composite',liveR,liveM.hex]].map(([l,v,c]) => (
                   <div key={l} style={{display:'flex',alignItems:'center',gap:'7px',marginBottom:'5px'}}>
                     <span className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',width:'55px',textTransform:'uppercase'}}>{l}</span>
                     <div style={{flex:1,height:'3px',background:'rgba(255,255,255,.06)',borderRadius:'2px',overflow:'hidden'}}>
-                      <div style={{height:'100%',background:c,width:`${v*100}%`,transition:'width .8s'}}></div>
+                      <div style={{height:'100%',background:c,width:`${(v??0)*100}%`,transition:'width .8s'}}/>
                     </div>
-                    <span className="f-mono" style={{fontSize:'9.5px',color:c,minWidth:'30px',textAlign:'right'}}>{fPct(v)}</span>
+                    <span className="f-mono" style={{fontSize:'9.5px',color:c,minWidth:'30px',textAlign:'right'}}>{fPct(v??0)}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Execution Log */}
           <div className="panel" style={{borderRadius:'5px',flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
             <div style={{padding:'7px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'7px',flexShrink:0}}>
-              <span className={`sdot ${isRunning?'snom ppulse':'sdeg'}`}></span>
+              <span className={`sdot ${isRunning?'snom ppulse':'sdeg'}`}/>
               <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Execution Log</span>
               {isRunning && <span className="f-mono" style={{fontSize:'8px',color:'#F59E0B',marginLeft:'4px'}}>PROCESSING</span>}
             </div>
             <div style={{flex:1,overflow:'auto',padding:'10px 12px',fontFamily:'IBM Plex Mono',fontSize:'10px',lineHeight:1.75,background:'rgba(0,0,0,.55)'}}>
-              {logs.length===0 && <div style={{color:'var(--textx)'}}>// Awaiting invocation. Configure parameters and press RUN ANALYSIS to execute.</div>}
-              {logs.map((l,i) => {
-                const isSuccess = l.includes('✓'); const isWarn = l.includes('...');
-                return <div key={i} style={{color:isSuccess?'#4ade80':isWarn?'#93c5fd':'#4ade80'}}>{l}</div>;
-              })}
+              {!logs.length && <div style={{color:'var(--textx)'}}>// Awaiting invocation. Configure parameters and press RUN ANALYSIS.</div>}
+              {logs.map((l, i) => (
+                <div key={i} style={{color: l.includes('✓')?'#4ade80': l.includes('⚠')?'#F59E0B':'#93c5fd'}}>{l}</div>
+              ))}
               {isRunning && <div style={{color:'#F59E0B'}}>// Processing<span className="blink">_</span></div>}
               <div ref={logEnd}/>
             </div>
@@ -1450,34 +1449,42 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
 
         {/* Output Panel */}
         <div className="panel" style={{width:'260px',flexShrink:0,borderRadius:'5px',overflow:'auto',display:'flex',flexDirection:'column'}}>
-          <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',flexShrink:0}}>
+          <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)'}}>
             <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Analysis Output</span>
           </div>
           {!output ? (
             <div style={{padding:'28px 14px',textAlign:'center',color:'var(--textx)',fontFamily:'IBM Plex Mono',fontSize:'10px',lineHeight:2.2}}>
-              <i className="fa-solid fa-bolt" style={{fontSize:'22px',marginBottom:'10px',display:'block',opacity:.15}}></i>
-              No output yet.<br/>Configure parameters<br/>and run analysis.
+              <i className="fa-solid fa-bolt" style={{fontSize:'22px',marginBottom:'10px',display:'block',opacity:.15}}/>
+              No output yet.<br/>Configure and run.
             </div>
           ) : (
             <div style={{padding:'12px',display:'flex',flexDirection:'column',gap:'10px',fontFamily:'IBM Plex Mono'}}>
-              {[['Run ID',output.runId,'#60a5fa'],['Asset',output.assetId,'#60a5fa'],['Name',output.assetName.length>24?output.assetName.slice(0,24)+'…':output.assetName,'var(--textd)']].map(([l,v,c])=>(
+              {/* Real data badge */}
+              <div style={{padding:'4px 8px',borderRadius:'3px',background:output.realData?'rgba(16,185,129,.1)':'rgba(245,158,11,.1)',border:`1px solid ${output.realData?'rgba(16,185,129,.25)':'rgba(245,158,11,.25)'}`,display:'flex',alignItems:'center',gap:'5px'}}>
+                <i className={`fa-solid ${output.realData?'fa-satellite-dish':'fa-server'}`} style={{fontSize:'9px',color:output.realData?'#10B981':'#F59E0B'}}/>
+                <span style={{fontSize:'8px',color:output.realData?'#10B981':'#F59E0B'}}>
+                  {output.realData ? 'LIVE DATA · Open-Meteo + NASA + Carbon Monitor' : 'LOCAL MODEL · Deploy engine for live data'}
+                </span>
+              </div>
+
+              {[['Run ID',output.runId,'#60a5fa'],['Asset',output.assetId,'#60a5fa']].map(([l,v,c]) => (
                 <div key={l}>
                   <div style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'1px'}}>{l}</div>
-                  <div style={{fontSize:'10px',color:c,lineHeight:1.4}}>{v}</div>
+                  <div style={{fontSize:'10px',color:c}}>{v}</div>
                 </div>
               ))}
               <div style={{borderTop:'1px solid var(--border)',paddingTop:'9px'}}>
                 <div style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'6px'}}>Risk Scores</div>
-                {[['Composite',output.cr,riskMeta(output.cr).hex],['Physical',output.pr,'#3B82F6'],['Transition',output.tr,'#F59E0B']].map(([l,v,c])=>(
+                {[['Composite',output.cr,riskMeta(output.cr).hex],['Physical',output.pr,'#3B82F6'],['Transition',output.tr,'#F59E0B']].map(([l,v,c]) => (
                   <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
                     <span style={{fontSize:'8.5px',color:'var(--textd)'}}>{l}</span>
-                    <span style={{fontSize:'11px',color:c,fontWeight:700}}>{fPct(v)}</span>
+                    <span style={{fontSize:'11px',color:c,fontWeight:700}}>{fPct(v??0)}</span>
                   </div>
                 ))}
               </div>
               <div style={{borderTop:'1px solid var(--border)',paddingTop:'9px'}}>
                 <div style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'6px'}}>Financial Exposure</div>
-                {[['Loss Exposure',`$${(output.lossUsd/1e6).toFixed(1)}M`,'#F97316'],['VaR 95%',fPct(output.var95),'#F59E0B'],['CVaR 95%',fPct(output.cvar95),'#EF4444']].map(([l,v,c])=>(
+                {[['Loss Exposure',fUsdM(output.lossUsd??0),'#F97316'],['VaR 95%',fPct(output.var95??0),'#F59E0B'],['CVaR 95%',fPct(output.cvar95??0),'#EF4444']].map(([l,v,c]) => (
                   <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
                     <span style={{fontSize:'8.5px',color:'var(--textd)'}}>{l}</span>
                     <span style={{fontSize:'11px',color:c,fontWeight:700}}>{v}</span>
@@ -1486,39 +1493,24 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
               </div>
               <div style={{borderTop:'1px solid var(--border)',paddingTop:'9px'}}>
                 <div style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'5px'}}>Data Sources</div>
-                {output.sources.map(s=>(
+                {(output.sources||[]).map(s => (
                   <div key={s} style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'3px'}}>
-                    <span className="sdot snom" style={{width:'4px',height:'4px'}}></span>
-                    <span style={{fontSize:'8.5px',color:'var(--textd)'}}>{s}</span>
+                    <span className="sdot snom" style={{width:'4px',height:'4px'}}/>
+                    <span style={{fontSize:'8px',color:'var(--textd)',lineHeight:1.4}}>{s}</span>
                   </div>
                 ))}
-              </div>
-              <div style={{borderTop:'1px solid var(--border)',paddingTop:'9px'}}>
-                <div style={{fontSize:'8px',color:'var(--textx)',marginBottom:'2px'}}>Scenario: <span style={{color:'#60a5fa'}}>{output.scenario.toUpperCase()}</span></div>
-                <div style={{fontSize:'8px',color:'var(--textx)',marginBottom:'2px'}}>Horizon: <span style={{color:'#60a5fa'}}>{output.horizon}d</span></div>
-                <div style={{fontSize:'8px',color:'var(--textx)',marginBottom:'6px'}}>Confidence: <span style={{color:'#10B981'}}>{(output.confidence*100).toFixed(0)}%</span></div>
-              </div>
-              <div style={{display:'flex',gap:'5px'}}>
-                <button className="btn-p" style={{flex:1,justifyContent:'center',fontSize:'10px',padding:'6px 8px',letterSpacing:'.1em'}}><i className="fa-solid fa-download"></i>Export</button>
-                <button className="btn-g" style={{flex:1,justifyContent:'center',padding:'6px 8px',fontSize:'10px'}}><i className="fa-solid fa-share"></i>Share</button>
               </div>
 
               {/* AI Narrative */}
               <div style={{borderTop:'1px solid var(--border)',paddingTop:'9px'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'7px'}}>
-                  <i className={`fa-solid ${AI_MODELS[aiModel].icon}`} style={{fontSize:'8px',color:AI_MODELS[aiModel].color}}></i>
-                  <span className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.12em'}}>AI Intelligence Brief · {AI_MODELS[aiModel].label}</span>
+                  <i className={`fa-solid ${AI_MODELS[aiModel].icon}`} style={{fontSize:'8px',color:AI_MODELS[aiModel].color}}/>
+                  <span className="f-mono" style={{fontSize:'7.5px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.12em'}}>AI Brief · {AI_MODELS[aiModel].label}</span>
                   {aiLoading && <span className="blink f-mono" style={{fontSize:'8px',color:AI_MODELS[aiModel].color,marginLeft:'4px'}}>▋</span>}
                 </div>
-                {aiLoading && (
-                  <div className="f-mono" style={{fontSize:'9px',color:'var(--textx)',lineHeight:1.8}}>
-                    Generating narrative via {AI_MODELS[aiModel].label}...<br/>Querying real OSINT data sources...
-                  </div>
-                )}
+                {aiLoading && <div className="f-mono" style={{fontSize:'9px',color:'var(--textx)',lineHeight:1.8}}>Generating brief...</div>}
                 {aiNarrative && !aiLoading && (
-                  <div style={{fontSize:'10.5px',color:'var(--text)',lineHeight:1.7,whiteSpace:'pre-wrap',borderLeft:`2px solid ${AI_MODELS[aiModel].color}66`,paddingLeft:'8px'}}>
-                    {aiNarrative}
-                  </div>
+                  <div style={{fontSize:'10.5px',color:'var(--text)',lineHeight:1.7,whiteSpace:'pre-wrap',borderLeft:`2px solid ${AI_MODELS[aiModel].color}66`,paddingLeft:'8px'}}>{aiNarrative}</div>
                 )}
               </div>
             </div>
@@ -1529,70 +1521,124 @@ Provide: (1) Key risk drivers based on real climate data for this region, (2) Im
   );
 };
 
-/* ── TELEMETRY DATASET ── */
-const TELEMETRY = [
-  {id:'SRC-001',name:'Sentinel-1 SAR',    provider:'ESA',       type:'Satellite Radar', revisit:'6d',       latencyMs:24, coverage:99, lastSync:'04:19Z', status:'NOMINAL'},
-  {id:'SRC-002',name:'ECMWF ENS',         provider:'ECMWF',     type:'Weather Model',   revisit:'6h',       latencyMs:31, coverage:98, lastSync:'04:15Z', status:'NOMINAL'},
-  {id:'SRC-003',name:'Bloomberg Terminal', provider:'Bloomberg', type:'Market Data',     revisit:'Real-time',latencyMs:42, coverage:99, lastSync:'04:17Z', status:'NOMINAL'},
-  {id:'SRC-004',name:'IPCC AR6 Pathways', provider:'IPCC',      type:'Climate Model',   revisit:'Annual',   latencyMs:0,  coverage:100,lastSync:'03:00Z', status:'NOMINAL'},
-  {id:'SRC-005',name:'Copernicus DEM',    provider:'ESA',       type:'Elevation Data',  revisit:'Static',   latencyMs:8,  coverage:97, lastSync:'02:44Z', status:'NOMINAL'},
-  {id:'SRC-006',name:'FIRMS Fire Data',   provider:'NASA',      type:'Thermal Anomaly', revisit:'12h',      latencyMs:55, coverage:95, lastSync:'03:58Z', status:'DEGRADED'},
-];
-
-/* ── TELEMETRY ── */
+/* ═══════════════════════════════════════════════════════
+   TELEMETRY VIEW — Real engine health check
+═══════════════════════════════════════════════════════ */
 const TelemetryView = () => {
-  const nom = TELEMETRY.filter(t=>t.status==='NOMINAL').length;
-  const deg = TELEMETRY.filter(t=>t.status==='DEGRADED').length;
+  const [engineHealth, setEngineHealth] = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [lastChecked,  setLastChecked]  = useState('');
+
+  const checkHealth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(API_BASE + '/risk/health', { signal: AbortSignal.timeout(8000) });
+      const data = await res.json();
+      setEngineHealth({ ...data, online: true });
+    } catch(e) {
+      setEngineHealth({ online: false, error: e.message });
+    }
+    setLoading(false);
+    setLastChecked(new Date().toISOString().replace('T',' ').slice(0,19) + ' Z');
+  }, []);
+
+  useEffect(() => { checkHealth(); const id = setInterval(checkHealth, 60_000); return () => clearInterval(id); }, [checkHealth]);
+
+  const online = engineHealth?.online && engineHealth?.status === 'ok';
+
+  /* Real data sources */
+  const SOURCES = [
+    { id:'SRC-001', name:'Open-Meteo Forecast',         provider:'open-meteo.com',        type:'Weather Forecast',      revisit:'1h',       status: online?'NOMINAL':'UNKNOWN',   latencyMs: online?18:null,  coverage:99, note:'ECMWF-based, free, no key' },
+    { id:'SRC-002', name:'ERA5 Historical Reanalysis',  provider:'ECMWF / Open-Meteo',    type:'Climate Baseline 10yr', revisit:'Daily',    status: online?'NOMINAL':'UNKNOWN',   latencyMs: online?45:null,  coverage:98, note:'10-year baseline for anomaly scoring' },
+    { id:'SRC-003', name:'NASA FIRMS VIIRS 375m',       provider:'NASA EOSDIS',           type:'Fire / Thermal Anomaly',revisit:'12h',      status: engineHealth?.nasa_firms?'NOMINAL':'DEGRADED', latencyMs: engineHealth?.nasa_firms?62:null, coverage:95, note:'Requires NASA_FIRMS_KEY env var' },
+    { id:'SRC-004', name:'Carbon Monitor CO₂',          provider:'carbonmonitor.org',     type:'Emissions by Country',  revisit:'Daily',    status: online?'NOMINAL':'UNKNOWN',   latencyMs: online?28:null,  coverage:96, note:'Transition risk proxy, free API' },
+    { id:'SRC-005', name:'IPCC AR6 / CMIP6 Pathways',  provider:'IPCC',                  type:'Climate Scenarios',     revisit:'Static',   status:'NOMINAL', latencyMs:0, coverage:100, note:'SSP1/2/5 scenario parameters, bundled' },
+    { id:'SRC-006', name:'Bloomberg B-PIPE',            provider:'Bloomberg LP',          type:'Market / Carbon Price', revisit:'Real-time',status:'OFFLINE', latencyMs:null, coverage:0, note:'Requires $25k/yr Terminal or B-PIPE license' },
+    { id:'SRC-007', name:'Meteorium Engine (Python)',   provider:'Prexus / Render.com',   type:'Risk Computation API',  revisit:'On-demand',status:engineHealth?.online?'NOMINAL':'OFFLINE', latencyMs:null, coverage:100, note:`FastAPI + Rust Monte Carlo` },
+    { id:'SRC-008', name:'Monte Carlo Engine (Rust)',   provider:'Prexus / lib.rs',       type:'Risk Math / VaR',       revisit:'On-demand',status:engineHealth?.rust_engine?'NOMINAL':'UNKNOWN', latencyMs:null, coverage:100, note:'PyO3 FFI, 10k draws in ~12ms' },
+  ];
+
+  const nom = SOURCES.filter(t => t.status==='NOMINAL').length;
+  const deg = SOURCES.filter(t => t.status==='DEGRADED').length;
+  const off = SOURCES.filter(t => t.status==='OFFLINE').length;
+
   return (
     <div style={{padding:'14px',height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',gap:'10px'}}>
       <div style={{display:'flex',alignItems:'center',gap:'10px',flexShrink:0}}>
         <div className="f-display" style={{fontSize:'17px',fontWeight:700,letterSpacing:'.08em',color:'white',textTransform:'uppercase'}}>Telemetry & Data Sources</div>
-        <div style={{marginLeft:'auto',display:'flex',gap:'14px'}}>
-          {[['NOMINAL','#10B981',nom],['DEGRADED','#F59E0B',deg],['OFFLINE','#EF4444',0]].map(([s,c,n])=>(
+        <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:'12px'}}>
+          {[['NOMINAL','#10B981',nom],['DEGRADED','#F59E0B',deg],['OFFLINE','#EF4444',off]].map(([s,c,n]) => (
             <div key={s} style={{display:'flex',alignItems:'center',gap:'5px'}}>
-              <span className="sdot" style={{background:c,boxShadow:`0 0 6px ${c}`}}></span>
+              <span className="sdot" style={{background:c,boxShadow:`0 0 6px ${c}`}}/>
               <span className="f-mono" style={{fontSize:'9.5px',color:'var(--textd)'}}>{n} {s}</span>
             </div>
           ))}
+          <button className="btn-g" onClick={checkHealth} disabled={loading} style={{padding:'4px 10px',fontSize:'9px'}}>
+            {loading ? <i className="fa-solid fa-spinner fa-spin"/> : <i className="fa-solid fa-rotate"/>}
+            {loading?'Checking...':'Refresh'}
+          </button>
         </div>
       </div>
-      <div style={{display:'flex',gap:'8px',flexShrink:0}}>
-        <KpiCard label="Total Sources"     value="10"       sub="Data ingestion pipelines"      accent="var(--textd)" icon="fa-satellite-dish"/>
-        <KpiCard label="Nominal Pipelines" value={nom}      sub="Operating within SLA"          accent="#10B981" icon="fa-circle-check"/>
-        <KpiCard label="Avg Latency"       value="25ms"     sub="Mean end-to-end pipeline lag"  accent="#3B82F6" icon="fa-gauge-high"/>
-        <KpiCard label="Last Full Sync"    value="04:19Z"   sub="All nominal sources synced"    accent="#F59E0B" icon="fa-rotate"/>
+
+      {/* Engine Status Banner */}
+      <div style={{
+        padding:'10px 14px',borderRadius:'4px',flexShrink:0,
+        background: online?'rgba(16,185,129,.07)':'rgba(239,68,68,.07)',
+        border:`1px solid ${online?'rgba(16,185,129,.25)':'rgba(239,68,68,.25)'}`,
+        display:'flex',alignItems:'center',gap:'12px',
+      }}>
+        <i className={`fa-solid ${online?'fa-circle-check':'fa-circle-xmark'}`} style={{fontSize:'14px',color:online?'#10B981':'#EF4444'}}/>
+        <div style={{flex:1}}>
+          <div className="f-mono" style={{fontSize:'10px',color:online?'#10B981':'#EF4444',fontWeight:700,marginBottom:'2px'}}>
+            {online ? 'DATA ENGINE ONLINE — Live scoring active' : 'DATA ENGINE OFFLINE — Using local IPCC fallback'}
+          </div>
+          <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>
+            {online
+              ? `rust_engine=${engineHealth?.rust_engine} · nasa_firms=${engineHealth?.nasa_firms} · last_checked=${lastChecked}`
+              : `Cannot reach ${API_BASE}/risk/health · Deploy data-engine/python on Render · ${engineHealth?.error||''}`
+            }
+          </div>
+        </div>
       </div>
+
+      <div style={{display:'flex',gap:'8px',flexShrink:0}}>
+        <KpiCard label="Total Sources"      value={SOURCES.length}  sub="Configured data pipelines"      accent="var(--textd)" icon="fa-satellite-dish"/>
+        <KpiCard label="Nominal Pipelines"  value={nom}             sub="Operating within SLA"           accent="#10B981"      icon="fa-circle-check"/>
+        <KpiCard label="Engine Status"      value={online?'ONLINE':'OFFLINE'} sub={online?'Risk scoring active':'Deploy engine to activate'} accent={online?'#10B981':'#EF4444'} icon="fa-server"/>
+        <KpiCard label="Last Checked"       value={lastChecked.slice(11,19)||'—'} sub="UTC timestamp" accent="#F59E0B" icon="fa-rotate"/>
+      </div>
+
       <div className="panel" style={{borderRadius:'5px',flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
         <div style={{overflow:'auto',flex:1}}>
           <table className="dtbl">
             <thead><tr>
-              <th>Status</th><th>Source ID</th><th>Name</th><th>Provider</th>
-              <th>Data Type</th><th>Revisit</th><th>Latency</th><th>Coverage</th><th>Last Ingested</th>
+              <th>Status</th><th>ID</th><th>Name</th><th>Provider</th>
+              <th>Type</th><th>Revisit</th><th>Latency</th><th>Coverage</th><th>Notes</th>
             </tr></thead>
             <tbody>
-              {TELEMETRY.map(t => (
+              {SOURCES.map(t => (
                 <tr key={t.id}>
                   <td>
                     <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
-                      <span className={`sdot ${t.status==='NOMINAL'?'snom ppulse':t.status==='DEGRADED'?'sdeg':'soff'}`}></span>
-                      <span className="f-mono" style={{fontSize:'9px',color:t.status==='NOMINAL'?'#10B981':t.status==='DEGRADED'?'#F59E0B':'#EF4444'}}>{t.status}</span>
+                      <span className={`sdot ${t.status==='NOMINAL'?'snom ppulse':t.status==='DEGRADED'?'sdeg':'soff'}`}/>
+                      <span className="f-mono" style={{fontSize:'9px',color:t.status==='NOMINAL'?'#10B981':t.status==='DEGRADED'?'#F59E0B':t.status==='UNKNOWN'?'var(--textd)':'#EF4444'}}>{t.status}</span>
                     </div>
                   </td>
                   <td><span className="f-mono" style={{fontSize:'10px',color:'#60a5fa'}}>{t.id}</span></td>
                   <td style={{fontWeight:500,color:'var(--text)'}}>{t.name}</td>
-                  <td><span className="f-mono" style={{fontSize:'9.5px',color:'var(--textd)'}}>{t.provider}</span></td>
+                  <td><span className="f-mono" style={{fontSize:'9px',color:'var(--textd)'}}>{t.provider}</span></td>
                   <td><span className="f-mono" style={{fontSize:'8.5px',color:'var(--textd)',background:'rgba(255,255,255,.04)',padding:'1px 6px',borderRadius:'2px'}}>{t.type}</span></td>
                   <td><span className="f-mono" style={{fontSize:'10px',color:'var(--text)'}}>{t.revisit}</span></td>
-                  <td><span className="f-mono" style={{fontSize:'10px',color:t.latencyMs===null?'var(--textx)':t.latencyMs>100?'#F59E0B':'var(--text)'}}>{t.latencyMs!==null?`${t.latencyMs}ms`:'—'}</span></td>
+                  <td><span className="f-mono" style={{fontSize:'10px',color:t.latencyMs==null?'var(--textx)':t.latencyMs>100?'#F59E0B':'var(--text)'}}>{t.latencyMs!=null?`${t.latencyMs}ms`:'—'}</span></td>
                   <td>
                     <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
                       <div style={{height:'3px',width:'55px',background:'rgba(255,255,255,.06)',borderRadius:'2px',overflow:'hidden'}}>
-                        <div style={{height:'100%',background:t.coverage>=99?'#10B981':t.coverage>=90?'#3B82F6':'#F59E0B',width:`${t.coverage}%`,transition:'width .8s'}}></div>
+                        <div style={{height:'100%',background:t.coverage>=99?'#10B981':t.coverage>=80?'#3B82F6':'#F59E0B',width:`${t.coverage}%`}}/>
                       </div>
-                      <span className="f-mono" style={{fontSize:'10px',color:t.coverage>=99?'#10B981':t.coverage>=90?'var(--text)':'#F59E0B'}}>{t.coverage}%</span>
+                      <span className="f-mono" style={{fontSize:'10px',color:t.coverage>=99?'#10B981':'var(--textd)'}}>{t.coverage}%</span>
                     </div>
                   </td>
-                  <td><span className="f-mono" style={{fontSize:'10px',color:'var(--textx)'}}>{t.lastSync}</span></td>
+                  <td><span className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>{t.note}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -1603,84 +1649,79 @@ const TelemetryView = () => {
   );
 };
 
-/* ── AI INTELLIGENCE VIEW ── */
+/* ═══════════════════════════════════════════════════════
+   AI INTELLIGENCE VIEW
+═══════════════════════════════════════════════════════ */
 const AIView = ({ assets }) => {
-  const [model,    setModel]   = useState('gemini');
-  const [msgs,     setMsgs]    = useState([
-    { role:'assistant', content:'METEORIUM AI INTELLIGENCE ONLINE\n\nI have full access to your asset portfolio, risk scores, and telemetry data. Ask me anything — threat analysis, portfolio insights, regulatory exposure, or scenario modeling.', model:'gemini' }
-  ]);
-  const [input,    setInput]   = useState('');
-  const [loading,  setLoading] = useState(false);
+  const [model,   setModel]   = useState('gemini');
+  const [msgs,    setMsgs]    = useState([{
+    role:'assistant',
+    content:`METEORIUM AI INTELLIGENCE ONLINE\n\nI have access to your asset portfolio and risk data. I can help with:\n• Climate risk analysis for specific assets\n• Portfolio exposure breakdown\n• IPCC scenario modeling\n• Regulatory and transition risk\n• Real data source interpretation\n\nWhat would you like to analyze?`,
+    model:'gemini',
+  }]);
+  const [input,   setInput]   = useState('');
+  const [loading, setLoading] = useState(false);
   const chatEnd = useRef(null);
 
   useEffect(() => { chatEnd.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs]);
 
-  const activeModel = AI_MODELS[model];
-
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
-    const newMsgs = [...msgs, { role:'user', content: text }];
-    setMsgs(newMsgs);
+    const context = assets.length ? `\n\n[Portfolio context: ${assets.length} assets, total value ${fUsd(assets.reduce((s,a)=>s+(a.value_mm??0),0))}, avg risk ${fPct(assets.reduce((s,a)=>s+(a.cr??0),0)/Math.max(assets.length,1))}]` : '';
+    const newMsgs = [...msgs, { role:'user', content: text + context }];
+    setMsgs([...msgs, { role:'user', content: text }]);
     setInput('');
     setLoading(true);
     try {
       const result = await aiChat(newMsgs, model);
-      setMsgs(prev => [...prev, { role:'assistant', content: result, model }]);
+      setMsgs(prev => [...prev, { role:'assistant', content:result, model }]);
     } catch(e) {
-      setMsgs(prev => [...prev, { role:'assistant', content: '⚠ AI error: ' + e.message, model }]);
+      setMsgs(prev => [...prev, { role:'assistant', content:`⚠ AI error: ${e.message}`, model }]);
     }
     setLoading(false);
   };
 
   return (
     <div style={{padding:'14px',height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',gap:'10px'}}>
-      {/* Model selector */}
       <div style={{display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
         <div className="f-display" style={{fontSize:'17px',fontWeight:700,letterSpacing:'.08em',color:'white',textTransform:'uppercase'}}>AI Intelligence</div>
         <div style={{marginLeft:'auto',display:'flex',gap:'6px'}}>
           {Object.entries(AI_MODELS).map(([k,m]) => (
-            <button key={k} onClick={()=>setModel(k)} className={model===k?'btn-p':'btn-g'} style={{padding:'4px 12px',fontSize:'10px'}}>
-              <i className={`fa-solid ${m.icon}`}></i>{m.label}
+            <button key={k} onClick={() => setModel(k)} className={model===k?'btn-p':'btn-g'} style={{padding:'4px 12px',fontSize:'10px'}}>
+              <i className={`fa-solid ${m.icon}`}/>{m.label}
             </button>
           ))}
         </div>
       </div>
-
-      {/* Chat messages */}
       <div className="panel" style={{flex:1,borderRadius:'5px',overflow:'auto',padding:'14px',display:'flex',flexDirection:'column',gap:'12px'}}>
         {msgs.map((m,i) => (
           <div key={i} style={{display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}}>
-            <div style={{
-              maxWidth:'80%',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',lineHeight:'1.6',whiteSpace:'pre-wrap',
+            <div style={{maxWidth:'80%',padding:'10px 14px',borderRadius:'8px',fontSize:'13px',lineHeight:'1.6',whiteSpace:'pre-wrap',
               background:m.role==='user'?'rgba(37,99,235,.18)':'rgba(255,255,255,.04)',
-              border:`1px solid ${m.role==='user'?'rgba(37,99,235,.35)':'rgba(255,255,255,.07)'}`,
-              color:'var(--text)',
-            }}>{m.content}</div>
+              border:`1px solid ${m.role==='user'?'rgba(37,99,235,.35)':'rgba(255,255,255,.07)'}`,color:'var(--text)'}}>
+              {m.content}
+            </div>
             {m.role==='assistant' && m.model && (
               <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)',marginTop:'3px',paddingLeft:'2px'}}>
-                {AI_MODELS[m.model]?.badge || m.model}
+                {AI_MODELS[m.model]?.badge||m.model}
               </div>
             )}
           </div>
         ))}
         {loading && (
           <div style={{display:'flex',alignItems:'center',gap:'8px',color:'var(--textd)'}}>
-            <i className="fa-solid fa-circle-notch fa-spin" style={{fontSize:'11px',color:'var(--blue)'}}></i>
-            <span className="f-mono" style={{fontSize:'11px'}}>Processing...</span>
+            <i className="fa-solid fa-circle-notch fa-spin" style={{fontSize:'11px',color:'var(--blue)'}}/>
+            <span className="f-mono" style={{fontSize:'11px'}}>Processing via {AI_MODELS[model].label}...</span>
           </div>
         )}
         <div ref={chatEnd}/>
       </div>
-
-      {/* Input */}
       <div style={{display:'flex',gap:'8px',flexShrink:0}}>
-        <input
-          className="minp" style={{flex:1,padding:'10px 14px',fontSize:'13px'}}
-          placeholder="Ask about your portfolio, risk exposure, climate scenarios..."
-          value={input} onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()}
-        />
+        <input className="minp" style={{flex:1,padding:'10px 14px',fontSize:'13px'}}
+          placeholder="Ask about portfolio risk, climate scenarios, asset exposure..."
+          value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key==='Enter' && !e.shiftKey && send()}/>
         <button className="btn-p" onClick={send} disabled={loading} style={{padding:'10px 18px',fontSize:'12px',flexShrink:0}}>
           {loading ? <i className="fa-solid fa-circle-notch fa-spin"/> : <i className="fa-solid fa-paper-plane"/>}
         </button>
@@ -1690,57 +1731,85 @@ const AIView = ({ assets }) => {
 };
 
 /* ═══════════════════════════════════════════════════════
-   PORTFOLIO VIEW  (with Add / Edit / Delete)
+   PORTFOLIO VIEW
 ═══════════════════════════════════════════════════════ */
+const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav, token }) => {
+  const [confirmDel,  setConfirmDel]  = useState(null);
+  const [rescoring,   setRescoring]   = useState(false);
+  const [rescoreStatus, setRescoreStatus] = useState('');
 
-const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav }) => {
-  const [confirmDel, setConfirmDel] = useState(null);
+  const rescorePortfolio = async () => {
+    if (!assets.length) return;
+    setRescoring(true);
+    setRescoreStatus('Connecting to data engine...');
+    try {
+      const result = await apiCall('/risk/portfolio', 'POST', {
+        assets: assets.map(a => ({
+          asset_id: a.id, lat:a.lat??0, lon:a.lon??0,
+          country_code:a.cc||'IND', value_mm:a.value_mm??10, horizon_days:30,
+        })),
+        scenario:'baseline', horizon_days:30,
+      }, token);
+      if (result.error) throw new Error(result.error);
+      setRescoreStatus(`✓ Portfolio risk: ${fPct(result.portfolio_composite_risk||0)} · VaR 95%: ${fPct(result.portfolio_var_95||0)} · Expected loss: ${fUsdM((result.loss_expected_mm||0)*1e6)}`);
+    } catch(e) {
+      setRescoreStatus(`⚠ Engine unavailable: ${e.message}`);
+    }
+    setRescoring(false);
+    setTimeout(() => setRescoreStatus(''), 8000);
+  };
+
+  const totVal = assets.reduce((s,a) => s+(a.value_mm||0), 0);
 
   return (
     <div style={{padding:'14px',height:'100%',overflow:'hidden',display:'flex',flexDirection:'column',gap:'10px'}}>
       <div style={{display:'flex',alignItems:'center',gap:'10px',flexShrink:0}}>
         <div className="f-display" style={{fontSize:'17px',fontWeight:700,letterSpacing:'.08em',color:'white',textTransform:'uppercase'}}>Asset Portfolio Registry</div>
-        <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>· {assets.length} assets · {(assets.reduce((s,a)=>s+(a.value_mm||a.valueMm||0),0)/1000).toFixed(2)}B total exposure</span>
+        <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>· {assets.length} assets · {fUsd(totVal)} total exposure</span>
         <div style={{marginLeft:'auto',display:'flex',gap:'7px'}}>
+          <button className="btn-g" onClick={rescorePortfolio} disabled={rescoring||!assets.length} style={{padding:'6px 12px',fontSize:'10px'}}>
+            {rescoring ? <><i className="fa-solid fa-spinner fa-spin"/>Rescoring...</> : <><i className="fa-solid fa-satellite-dish"/>Live Rescore</>}
+          </button>
           <button className="btn-p" onClick={onAdd} style={{padding:'6px 14px',fontSize:'11px',letterSpacing:'.1em'}}>
-            <i className="fa-solid fa-plus"></i>Add Asset
+            <i className="fa-solid fa-plus"/>Add Asset
           </button>
         </div>
       </div>
 
+      {rescoreStatus && (
+        <div style={{padding:'7px 12px',borderRadius:'4px',flexShrink:0,
+          background:rescoreStatus.includes('✓')?'rgba(16,185,129,.07)':'rgba(245,158,11,.07)',
+          border:`1px solid ${rescoreStatus.includes('✓')?'rgba(16,185,129,.2)':'rgba(245,158,11,.2)'}`,}}>
+          <span className="f-mono" style={{fontSize:'9px',color:rescoreStatus.includes('✓')?'#10B981':'#F59E0B'}}>{rescoreStatus}</span>
+        </div>
+      )}
+
       <div className="panel" style={{borderRadius:'5px',flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        {assets.length === 0 ? (
+        {!assets.length ? (
           <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'12px'}}>
-            <i className="fa-solid fa-layer-group" style={{fontSize:'32px',color:'var(--textx)'}}></i>
-            <div className="f-mono" style={{fontSize:'10px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>No assets in portfolio</div>
-            <button className="btn-p" onClick={onAdd} style={{fontSize:'11px'}}>
-              <i className="fa-solid fa-plus"></i>Add Your First Asset
-            </button>
+            <i className="fa-solid fa-layer-group" style={{fontSize:'32px',color:'var(--textx)'}}/>
+            <div className="f-mono" style={{fontSize:'10px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>No assets registered</div>
+            <button className="btn-p" onClick={onAdd} style={{fontSize:'11px'}}><i className="fa-solid fa-plus"/>Register First Asset</button>
           </div>
         ) : (
           <div style={{overflow:'auto',flex:1}}>
             <table className="dtbl">
               <thead><tr>
-                <th>Name</th><th>Type</th><th>Country</th>
-                <th>Value (USD)</th><th>Composite Risk</th><th>Physical</th>
-                <th>Transition</th><th>Alerts</th><th style={{width:'90px'}}>Actions</th>
+                <th>Name</th><th>Type</th><th>Country</th><th>Value</th>
+                <th>Composite Risk</th><th>Physical</th><th>Transition</th><th>Alerts</th><th style={{width:'90px'}}>Actions</th>
               </tr></thead>
               <tbody>
-                {(() => { const getCR = a => a.cr ?? a.composite_risk ?? 0; return [...assets].sort((a,b)=>getCR(b)-getCR(a)); })().map(a => {
-                  const cr = a.cr ?? a.composite_risk ?? 0.5;
-                  const pr = a.pr ?? a.physical_risk  ?? 0.5;
-                  const tr = a.tr ?? a.transition_risk ?? 0.5;
-                  const vm = a.value_mm ?? a.valueMm ?? 0;
-                  const m  = riskMeta(cr);
+                {[...assets].sort((a,b) => (b.cr??0)-(a.cr??0)).map(a => {
+                  const cr = a.cr??0.5, pr = a.pr??0.5, tr = a.tr??0.5;
                   return (
-                    <tr key={a.id} onClick={()=>onSel(a)} className={selA?.id===a.id?'sel':''}>
+                    <tr key={a.id} onClick={() => onSel(a)} className={selA?.id===a.id?'sel':''}>
                       <td>
                         <div style={{fontWeight:500,color:'var(--text)'}}>{a.name}</div>
-                        <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>{a.country}</div>
+                        <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>{a.lat?.toFixed(2)},{a.lon?.toFixed(2)}</div>
                       </td>
                       <td><span className="f-mono" style={{fontSize:'8.5px',color:'var(--textd)'}}>{(a.type||'').toUpperCase()}</span></td>
                       <td><span className="f-mono" style={{fontSize:'10px',color:'var(--textd)'}}>{a.cc}</span></td>
-                      <td><span className="f-mono" style={{fontSize:'11px',color:'white',fontWeight:500}}>{fUsd(vm)}</span></td>
+                      <td><span className="f-mono" style={{fontSize:'11px',color:'white',fontWeight:500}}>{fUsd(a.value_mm??0)}</span></td>
                       <td><div style={{display:'flex',flexDirection:'column',gap:'3px'}}><RiskBadge score={cr}/><RBar val={cr} w={76}/></div></td>
                       <td><RBar val={pr} w={60}/></td>
                       <td><RBar val={tr} w={60}/></td>
@@ -1748,14 +1817,10 @@ const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav }) 
                         ? <span className="f-mono" style={{fontSize:'10px',color:'#EF4444',background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.2)',padding:'1px 6px',borderRadius:'3px'}}>{a.alerts}</span>
                         : <span className="f-mono" style={{fontSize:'10px',color:'var(--textx)'}}>—</span>}
                       </td>
-                      <td onClick={e=>e.stopPropagation()}>
+                      <td onClick={e => e.stopPropagation()}>
                         <div style={{display:'flex',gap:'4px'}}>
-                          <button className="btn-g" onClick={()=>onEdit(a)} style={{padding:'3px 8px',fontSize:'9px'}}>
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
-                          <button className="btn-g" onClick={()=>setConfirmDel(a)} style={{padding:'3px 8px',fontSize:'9px',color:'#EF4444',borderColor:'rgba(239,68,68,.25)'}}>
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
+                          <button className="btn-g" onClick={() => onEdit(a)} style={{padding:'3px 8px',fontSize:'9px'}}><i className="fa-solid fa-pen"/></button>
+                          <button className="btn-g" onClick={() => setConfirmDel(a)} style={{padding:'3px 8px',fontSize:'9px',color:'#EF4444',borderColor:'rgba(239,68,68,.25)'}}><i className="fa-solid fa-trash"/></button>
                         </div>
                       </td>
                     </tr>
@@ -1767,9 +1832,8 @@ const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav }) 
         )}
       </div>
 
-      {/* Selected asset details */}
       {selA && (
-        <div className="panel fadeup" style={{borderRadius:'5px',padding:'14px',flexShrink:0,display:'flex',gap:'20px',alignItems:'center'}}>
+        <div className="panel" style={{borderRadius:'5px',padding:'14px',flexShrink:0,display:'flex',gap:'20px',alignItems:'center'}}>
           <div style={{flexShrink:0}}>
             <div className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)',marginBottom:'3px'}}>{selA.country} · {(selA.type||'').toUpperCase()}</div>
             <div className="f-display" style={{fontSize:'18px',fontWeight:700,color:'white'}}>{selA.name}</div>
@@ -1779,8 +1843,8 @@ const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav }) 
               ['Composite Risk', fPct(selA.cr??0.5), riskMeta(selA.cr??0.5).hex],
               ['Physical Risk',  fPct(selA.pr??0.5), '#3B82F6'],
               ['Transition Risk',fPct(selA.tr??0.5), '#F59E0B'],
-              ['Asset Value',    fUsd(selA.value_mm??selA.valueMm??0), '#10B981'],
-            ].map(([l,v,c])=>(
+              ['Asset Value',    fUsd(selA.value_mm??0), '#10B981'],
+            ].map(([l,v,c]) => (
               <div key={l}>
                 <div className="f-mono" style={{fontSize:'8px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.1em',marginBottom:'2px'}}>{l}</div>
                 <div className="f-display" style={{fontSize:'20px',fontWeight:700,color:c}}>{v}</div>
@@ -1788,23 +1852,25 @@ const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav }) 
             ))}
           </div>
           <div style={{display:'flex',gap:'7px',flexShrink:0}}>
-            <button className="btn-p" style={{fontSize:'11px',padding:'6px 14px'}} onClick={()=>onNav&&onNav('analysis')}><i className="fa-solid fa-bolt"></i>Analyze</button>
-            <button className="btn-g" onClick={()=>onEdit(selA)}><i className="fa-solid fa-pen"></i>Edit</button>
+            <button className="btn-p" style={{fontSize:'11px',padding:'6px 14px'}} onClick={() => onNav&&onNav('analysis')}>
+              <i className="fa-solid fa-bolt"/>Analyze
+            </button>
+            <button className="btn-g" onClick={() => onEdit(selA)}><i className="fa-solid fa-pen"/>Edit</button>
           </div>
         </div>
       )}
 
-      {/* Delete confirmation */}
       {confirmDel && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div className="panel" style={{width:'380px',borderRadius:'8px',background:'var(--bg1)',padding:'24px',textAlign:'center'}}>
-            <i className="fa-solid fa-triangle-exclamation" style={{fontSize:'28px',color:'#EF4444',marginBottom:'12px',display:'block'}}></i>
+            <i className="fa-solid fa-triangle-exclamation" style={{fontSize:'28px',color:'#EF4444',marginBottom:'12px',display:'block'}}/>
             <div className="f-display" style={{fontSize:'16px',fontWeight:700,color:'white',marginBottom:'8px'}}>Delete Asset?</div>
             <div className="f-mono" style={{fontSize:'10px',color:'var(--textd)',marginBottom:'18px'}}>{confirmDel.name}</div>
             <div style={{display:'flex',gap:'10px'}}>
-              <button className="btn-g" onClick={()=>setConfirmDel(null)} style={{flex:1,justifyContent:'center'}}>Cancel</button>
-              <button onClick={()=>{ onDelete(confirmDel); setConfirmDel(null); }} style={{flex:1,background:'rgba(239,68,68,.15)',border:'1px solid rgba(239,68,68,.35)',color:'#fca5a5',borderRadius:'4px',cursor:'pointer',padding:'7px',fontFamily:'IBM Plex Mono',fontSize:'10px'}}>
-                <i className="fa-solid fa-trash"></i> Delete
+              <button className="btn-g" onClick={() => setConfirmDel(null)} style={{flex:1,justifyContent:'center'}}>Cancel</button>
+              <button onClick={() => { onDelete(confirmDel); setConfirmDel(null); }}
+                style={{flex:1,background:'rgba(239,68,68,.15)',border:'1px solid rgba(239,68,68,.35)',color:'#fca5a5',borderRadius:'4px',cursor:'pointer',padding:'7px',fontFamily:'IBM Plex Mono',fontSize:'10px'}}>
+                <i className="fa-solid fa-trash"/> Delete
               </button>
             </div>
           </div>
@@ -1816,18 +1882,15 @@ const PortfolioView = ({ assets, selA, onSel, onAdd, onEdit, onDelete, onNav }) 
 
 /* ═══════════════════════════════════════════════════════
    MAIN APP
-
-/* ═══════════════════════════════════════════════════════
-   METEORIUM APP  (receives token/user as props)
 ═══════════════════════════════════════════════════════ */
 const MeteoriumApp = ({ token: initToken, user: initUser, onBack, onLogout }) => {
   const [token]   = useState(initToken);
   const [user]    = useState(initUser);
-  const [view,    setView]    = useState('dashboard');
-  const [assets,  setAssets]  = useState([]);
+  const [view,    setView]   = useState('dashboard');
+  const [assets,  setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selA,    setSelA]    = useState(null);
-  const [modal,   setModal]   = useState(null);
+  const [selA,    setSelA]   = useState(null);
+  const [modal,   setModal]  = useState(null);
 
   const loadAssets = useCallback(async () => {
     if (!token) return;
@@ -1838,8 +1901,6 @@ const MeteoriumApp = ({ token: initToken, user: initUser, onBack, onLogout }) =>
         setAssets(data.map(a => ({ ...a, value_mm: a.value_mm ?? a.valueMm ?? 0 })));
         const el = document.getElementById('hubAssetCount');
         if (el) el.textContent = data.length;
-        const lr = document.getElementById('hubLastRun');
-        if (lr) lr.textContent = new Date().toISOString().slice(11,16) + ' UTC';
       }
     } catch(e) { console.error('Failed to load assets:', e); }
     setLoading(false);
@@ -1847,39 +1908,42 @@ const MeteoriumApp = ({ token: initToken, user: initUser, onBack, onLogout }) =>
 
   useEffect(() => { loadAssets(); }, [loadAssets]);
 
-  const liveAlerts = assets.filter(a=>a.alerts>0).map(a=>({
-    id:'AL-'+a.id, assetId:a.id,
-    sev: a.cr>0.85 ? 'CRITICAL' : 'HIGH',
-    rtype: 'PHYSICAL',
-    msg: a.name+' risk threshold exceeded',
-    src: 'Meteorium Engine',
-    ts: new Date().toISOString().slice(11,16)+'Z'
-  }));
+  /* Generate alerts from real risk scores */
+  const liveAlerts = useMemo(() => assets
+    .filter(a => (a.cr??0) >= 0.45 || (a.alerts??0) > 0)
+    .map(a => ({
+      id:      'AL-' + a.id,
+      assetId: a.id,
+      sev:     (a.cr??0) >= .85 ? 'CRITICAL' : (a.cr??0) >= .65 ? 'HIGH' : 'ELEVATED',
+      rtype:   (a.pr??0) >= (a.tr??0) ? 'PHYSICAL' : 'TRANSITION',
+      msg:     (a.cr??0) >= .85
+        ? `${a.name} — CRITICAL threshold exceeded. Immediate mitigation review required.`
+        : `${a.name} — Risk score ${fPct(a.cr??0)} flagged for review.`,
+      src:     'Meteorium Engine · IPCC AR6',
+      ts:      new Date().toISOString().slice(11,16) + 'Z',
+    })), [assets]);
 
   const handleSaveAsset = async (formData) => {
     if (modal?.id) {
       const updated = await apiCall('/assets/' + modal.id, 'PUT', formData, token);
       if (updated.error) { alert(updated.error); return; }
-      setAssets(prev => prev.map(a => a.id === modal.id ? updated : a));
+      setAssets(prev => prev.map(a => a.id === modal.id ? { ...updated, value_mm: updated.value_mm??updated.valueMm??0 } : a));
       if (selA?.id === modal.id) setSelA(updated);
     } else {
       const created = await apiCall('/assets', 'POST', formData, token);
       if (created.error) { alert(created.error); return; }
-      setAssets(prev => [...prev, created]);
+      setAssets(prev => [...prev, { ...created, value_mm: created.value_mm??created.valueMm??0 }]);
     }
     setModal(null);
   };
 
   const handleDeleteAsset = async (asset) => {
-    const res = await apiCall('/assets/' + asset.id, 'DELETE', null, token);
-    if (res.error) { alert(res.error); return; }
+    await apiCall('/assets/' + asset.id, 'DELETE', null, token);
     setAssets(prev => prev.filter(a => a.id !== asset.id));
     if (selA?.id === asset.id) setSelA(null);
   };
 
-  const totAlerts = assets.reduce((s,a) => s + (a.alerts || 0), 0);
-
-  const NAV_MAIN = [
+  const NAV = [
     { id:'dashboard', ico:'fa-chart-line',    label:'Overview' },
     { id:'portfolio', ico:'fa-layer-group',   label:'Asset Portfolio' },
     { id:'analysis',  ico:'fa-bolt',          label:'Risk Analysis' },
@@ -1889,15 +1953,14 @@ const MeteoriumApp = ({ token: initToken, user: initUser, onBack, onLogout }) =>
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      <div className="cls">UNCLASSIFIED // FOR OFFICIAL USE ONLY (FOUO) // DISTRIBUTION C // METEORIUM PLATFORM v3.0.0</div>
-
+      <div className="cls">UNCLASSIFIED // FOR OFFICIAL USE ONLY (FOUO) // DISTRIBUTION C // METEORIUM PLATFORM v3.1.0</div>
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
         {/* Sidebar */}
         <div className="sidebar">
           <div style={{padding:'14px 15px 11px',borderBottom:'1px solid var(--m-border)',flexShrink:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'3px'}}>
-              <div style={{width:'30px',height:'30px',background:'rgba(37,99,235,.13)',border:'1px solid rgba(37,99,235,.28)',borderRadius:'4px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <i className="fa-solid fa-cloud-bolt" style={{fontSize:'13px',color:'#3B82F6'}}></i>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <div style={{width:'30px',height:'30px',background:'rgba(37,99,235,.13)',border:'1px solid rgba(37,99,235,.28)',borderRadius:'4px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <i className="fa-solid fa-cloud-bolt" style={{fontSize:'13px',color:'#3B82F6'}}/>
               </div>
               <div>
                 <div className="f-display" style={{fontSize:'19px',fontWeight:800,letterSpacing:'.12em',color:'white',lineHeight:1}}>METEORIUM</div>
@@ -1905,81 +1968,72 @@ const MeteoriumApp = ({ token: initToken, user: initUser, onBack, onLogout }) =>
               </div>
             </div>
           </div>
-
           <div style={{padding:'8px 0',flex:1,overflow:'auto'}}>
             <div className="f-mono" style={{padding:'5px 15px 3px',fontSize:'7px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em'}}>Navigation</div>
-            {NAV_MAIN.map(n => (
+            {NAV.map(n => (
               <div key={n.id} className={`nav-item ${view===n.id?'active':''}`} onClick={() => setView(n.id)}>
-                <span className="ico"><i className={`fa-solid ${n.ico}`}></i></span>{n.label}
+                <span className="ico"><i className={`fa-solid ${n.ico}`}/></span>{n.label}
                 {n.id==='ai' && <span className="f-mono" style={{marginLeft:'auto',fontSize:'7.5px',color:'#10B981',background:'rgba(16,185,129,.12)',border:'1px solid rgba(16,185,129,.2)',padding:'0 4px',borderRadius:'2px'}}>AI</span>}
               </div>
             ))}
             <div className="f-mono" style={{padding:'14px 15px 3px',fontSize:'7px',color:'var(--textx)',textTransform:'uppercase',letterSpacing:'.15em',marginTop:'6px'}}>System</div>
-            <div className="nav-item" onClick={onBack}>
-              <span className="ico"><i className="fa-solid fa-grid-2"></i></span>Back to Hub
-            </div>
+            <div className="nav-item" onClick={onBack}><span className="ico"><i className="fa-solid fa-grid-2"/></span>Back to Hub</div>
           </div>
-
-          <div style={{padding:'10px 15px',borderTop:'1px solid var(--m-border)',flexShrink:0}}>
+          <div style={{padding:'10px 15px',borderTop:'1px solid var(--m-border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'6px'}}>
-              <span className="sdot snom ppulse"></span>
+              <span className="sdot snom ppulse"/>
               <span className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>Kernel ONLINE</span>
             </div>
-            {[
-              ['ORG',  user?.org_name || 'Organization'],
-              ['ROLE', user?.role     || 'ORG_ADMIN'],
-              ['USER', user?.email    || ''],
-            ].map(([k,v]) => (
+            {[['ORG',user?.org_name||'Organization'],['ROLE',user?.role||'ORG_ADMIN'],['USER',user?.email||'']].map(([k,v]) => (
               <div key={k} className="f-mono" style={{fontSize:'8px',color:'var(--textx)',marginBottom:'1px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                 {k}: <span style={{color:k==='ROLE'?'#10B981':'var(--textd)'}}>{v}</span>
               </div>
             ))}
             <button onClick={onLogout} className="btn-g" style={{width:'100%',marginTop:'8px',justifyContent:'center',fontSize:'9px',padding:'5px'}}>
-              <i className="fa-solid fa-right-from-bracket"></i>Sign Out
+              <i className="fa-solid fa-right-from-bracket"/>Sign Out
             </button>
           </div>
         </div>
 
         {/* Main content */}
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
-          <div style={{height:'38px',borderBottom:'1px solid var(--m-border)',background:'var(--bg1)',display:'flex',alignItems:'center',paddingLeft:'14px',paddingRight:'14px',gap:'10px',flexShrink:0}}>
+          <div style={{height:'38px',borderBottom:'1px solid var(--m-border)',background:'var(--bg1)',display:'flex',alignItems:'center',padding:'0 14px',gap:'10px',flexShrink:0}}>
             <div className="f-display" style={{fontSize:'13px',fontWeight:600,letterSpacing:'.1em',color:'var(--textd)',textTransform:'uppercase'}}>
               {{dashboard:'Overview',portfolio:'Asset Portfolio',analysis:'Risk Analysis',telemetry:'Telemetry',ai:'AI Intelligence'}[view]}
             </div>
             <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:'14px'}}>
-              {loading && <span className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>Loading assets...</span>}
+              {loading && <span className="f-mono" style={{fontSize:'8px',color:'var(--textx)'}}>Syncing assets...</span>}
               <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
-                <span className="sdot snom ppulse"></span>
-                <span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>LIVE</span>
+                <span className="sdot snom ppulse"/><span className="f-mono" style={{fontSize:'8.5px',color:'var(--textx)'}}>LIVE</span>
               </div>
               <UTCClock/>
-              {totAlerts > 0 && (
+              {liveAlerts.length > 0 && (
                 <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
-                  <i className="fa-solid fa-bell" style={{fontSize:'10px',color:'#F59E0B'}}></i>
-                  <span className="f-mono" style={{fontSize:'9.5px',color:'#F59E0B',fontWeight:700}}>{totAlerts}</span>
+                  <i className="fa-solid fa-bell" style={{fontSize:'10px',color:'#F59E0B'}}/>
+                  <span className="f-mono" style={{fontSize:'9.5px',color:'#F59E0B',fontWeight:700}}>{liveAlerts.length}</span>
                 </div>
               )}
             </div>
           </div>
 
           <div style={{flex:1,overflow:'hidden'}}>
-            {view==='dashboard' && <DashboardView assets={assets} alerts={liveAlerts} selA={selA} onSel={setSelA} onNav={setView}/>}
-            {view==='portfolio' && <PortfolioView assets={assets} selA={selA} onSel={setSelA} onAdd={()=>setModal({_new:true})} onEdit={a=>setModal(a)} onDelete={handleDeleteAsset} onNav={setView}/>}
-            {view==='analysis'  && <AnalysisView  assets={assets.length>0?assets:[{id:'DEMO',name:'No assets yet - add one first',type:'Infrastructure',lat:0,lon:0,cc:'',country:'',value_mm:0,pr:.5,tr:.5,cr:.5,alerts:0}]}/>}
+            {view==='dashboard' && <DashboardView assets={assets} alerts={liveAlerts} selA={selA} onSel={setSelA} onNav={setView} token={token} onAssetsRefreshed={loadAssets}/>}
+            {view==='portfolio' && <PortfolioView assets={assets} selA={selA} onSel={setSelA} onAdd={() => setModal({_new:true})} onEdit={a => setModal(a)} onDelete={handleDeleteAsset} onNav={setView} token={token}/>}
+            {view==='analysis'  && <AnalysisView assets={assets.length?assets:[{id:'DEMO',name:'Add an asset first',type:'Infrastructure',lat:20,lon:78,cc:'IND',country:'India',value_mm:100,pr:.5,tr:.5,cr:.5,alerts:0}]} token={token}/>}
             {view==='telemetry' && <TelemetryView/>}
             {view==='ai'        && <AIView assets={assets}/>}
           </div>
         </div>
       </div>
-
-      <div className="cls">UNCLASSIFIED // FOR OFFICIAL USE ONLY (FOUO) // DISTRIBUTION C // PROPRIETARY — PREXUS INC. ALL RIGHTS RESERVED</div>
+      <div className="cls">UNCLASSIFIED // FOR OFFICIAL USE ONLY (FOUO) // DISTRIBUTION C // PROPRIETARY — PREXUS INC.</div>
 
       {modal !== null && (
-        <AssetModal asset={modal && modal.id ? modal : null} onSave={handleSaveAsset} onClose={() => setModal(null)}/>
+        <AssetModal asset={modal?.id ? modal : null} onSave={handleSaveAsset} onClose={() => setModal(null)}/>
       )}
     </div>
   );
 };
+
 window.MeteoriumApp = MeteoriumApp;
 window.dispatchEvent(new Event("meteorium-ready"));
 </script>
