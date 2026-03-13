@@ -1,0 +1,31 @@
+[package]
+name    = "meteorium-risk"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name      = "meteorium_risk"
+crate-type = ["cdylib", "rlib"]  # cdylib for Python FFI, rlib for tests
+
+[dependencies]
+# PyO3: Rust ↔ Python FFI bridge
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+# Random number generation
+rand      = "0.8"
+rand_distr = "0.4"
+
+# Statistical distributions
+statrs = "0.16"
+
+[dev-dependencies]
+criterion = "0.5"  # benchmarking
+
+[[bench]]
+name    = "monte_carlo"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto       = true   # link-time optimization — makes the math faster
+codegen-units = 1
