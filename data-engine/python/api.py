@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from adapters.free_sources import PhysicalRiskScorer
+from data_engine.python.adapters.free_sources import PhysicalRiskScorer
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
