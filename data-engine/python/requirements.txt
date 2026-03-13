@@ -1,12 +1,4 @@
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
+fastapi==0.100.1
+uvicorn[standard]==0.23.2
 httpx==0.27.0
-pydantic==2.7.0
-
-# Optional: direct ECMWF access (heavy, only if needed)
-# ecmwf-opendata==1.3.4
-# cfgrib==0.9.12
-# xarray==2024.6.0
-
-# Optional: Bloomberg (requires Bloomberg Terminal + separate SDK install)
-# blpapi — install from: https://blpapi.bloomberg.com/repository/releases/python/simple/
+pydantic==1.10.21
