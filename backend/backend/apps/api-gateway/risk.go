@@ -35,6 +35,16 @@ type cachedRisk struct {
 	expiresAt time.Time
 }
 
+// ── Data engine URL ──────────────────────────────────────────────────────────
+
+func getDataEngineURL() string {
+	url := os.Getenv("DATA_ENGINE_URL")
+	if url == "" {
+		url = "https://prexus-intelligence.onrender.com"
+	}
+	return url
+}
+
 // ── Proxy factory ────────────────────────────────────────────────────────────
 
 // proxyToDataEngine returns a handler that forwards POST bodies to the engine.
