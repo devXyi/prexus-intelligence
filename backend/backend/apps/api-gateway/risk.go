@@ -178,9 +178,9 @@ func setRiskCache(reqBody, respBody []byte) {
 	// Evict expired entries (lazy GC)
 	if len(riskCache.store) > 1000 {
 		now := time.Now()
-		for k, v := range riskCache.store {
-			if now.After(v.expiresAt) {
-				delete(riskCache.store, k)
+		for entryKey, entry := range riskCache.store {
+			if now.After(entry.expiresAt) {
+				delete(riskCache.store, entryKey)
 			}
 		}
 	}
