@@ -201,7 +201,7 @@ select.fi option{background:#04101f}
     <div class="tb-right">
       <span class="tb-cls">FOUO // DISTRIBUTION C</span>
       <div><div class="tb-clock" id="clock">—</div><div class="tb-date" id="dateline">—</div></div>
-      <div class="tb-user"><div class="tb-av">M</div><div style="font-size:10px;line-height:1.2"><div style="color:var(--ice)" id="uname">Operator</div><div style="font-size:8px;color:var(--ghost)" id="urole">Risk Analyst</div></div></div>
+      <div class="tb-user" title="User Profile" style="cursor:pointer" id="user-avatar-btn"><div class="tb-av" id="uname-av" style="width:28px;height:28px;font-size:11px">M</div></div>
     </div>
   </div>
   <div id="rail">
@@ -309,7 +309,7 @@ select.fi option{background:#04101f}
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em">Assets</div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--cobalt)" id="ctx-assets">8</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--cobalt)" id="ctx-assets">0</div>
         </div>
       </div>
 
@@ -348,9 +348,44 @@ select.fi option{background:#04101f}
 
       <!-- DISASTER SIMULATION -->
       <div class="rpsec">
-        <div class="rpsec-hd"><span class="rpsec-t">Disaster Simulation</span></div>
-        <div style="margin-bottom:8px;font-size:10px;color:var(--steel)">Target: <span style="color:var(--cobalt);font-size:9px" id="sim-target">Sao Paulo Agri Hub</span></div>
-        <button class="sim-btn" id="sim-btn">Simulate Disaster</button>
+        <div class="rpsec-hd"><span class="rpsec-t">Disaster Simulation</span><span class="tag amber" style="font-size:7px" id="sim-scenario-badge">FLOOD</span></div>
+
+        <!-- Scenario type selector -->
+        <div style="display:flex;gap:3px;margin-bottom:10px">
+          <button class="sim-type-btn active" data-stype="flood" style="flex:1;padding:4px 2px;border:1px solid rgba(14,165,233,.3);background:rgba(14,165,233,.08);color:var(--cobalt);font-family:'Martian Mono',monospace;font-size:8px;letter-spacing:.04em;cursor:pointer;border-radius:2px;text-align:center">Flood</button>
+          <button class="sim-type-btn" data-stype="wildfire" style="flex:1;padding:4px 2px;border:1px solid var(--wire);background:transparent;color:var(--ghost);font-family:'Martian Mono',monospace;font-size:8px;letter-spacing:.04em;cursor:pointer;border-radius:2px;text-align:center">Fire</button>
+          <button class="sim-type-btn" data-stype="heat" style="flex:1;padding:4px 2px;border:1px solid var(--wire);background:transparent;color:var(--ghost);font-family:'Martian Mono',monospace;font-size:8px;letter-spacing:.04em;cursor:pointer;border-radius:2px;text-align:center">Heat</button>
+          <button class="sim-type-btn" data-stype="drought" style="flex:1;padding:4px 2px;border:1px solid var(--wire);background:transparent;color:var(--ghost);font-family:'Martian Mono',monospace;font-size:8px;letter-spacing:.04em;cursor:pointer;border-radius:2px;text-align:center">Drought</button>
+        </div>
+
+        <!-- Target asset -->
+        <div style="margin-bottom:10px;padding:6px 10px;background:rgba(0,0,0,.3);border:1px solid var(--wire);border-radius:3px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:9px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em">Target Asset</div>
+          <div style="font-size:10px;color:var(--cobalt);font-weight:500" id="sim-target">Add assets first</div>
+        </div>
+
+        <!-- Intensity slider -->
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.1em">
+            <span>Event Intensity</span><span id="sim-intensity-val" style="color:var(--amber)">65%</span>
+          </div>
+          <input type="range" id="sim-intensity" min="10" max="100" value="65"
+            style="width:100%;height:4px;background:linear-gradient(to right,var(--cobalt),var(--amber),var(--red));border-radius:2px;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer"/>
+          <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:7px;color:var(--phantom)">
+            <span>Moderate</span><span>Severe</span><span>Catastrophic</span>
+          </div>
+        </div>
+
+        <!-- Duration slider -->
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.1em">
+            <span>Duration</span><span id="sim-duration-val" style="color:var(--steel)">7 days</span>
+          </div>
+          <input type="range" id="sim-duration" min="1" max="90" value="7"
+            style="width:100%;height:4px;background:var(--phantom);border-radius:2px;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer"/>
+        </div>
+
+        <button class="sim-btn" id="sim-btn">Run Simulation</button>
         <div id="sim-result"></div>
       </div>
 
@@ -363,26 +398,135 @@ select.fi option{background:#04101f}
     </div>
   </div>
 </div>
-<div class="backdrop hidden" id="add-modal">
-  <div class="mbox">
-    <div class="mhd"><div class="mt2">Register New Asset</div><button class="mclose" id="modal-close">&#10005;</button></div>
-    <div class="mbody">
-      <div style="margin-bottom:14px;padding:8px 12px;background:rgba(14,165,233,.05);border:1px solid var(--wire);border-radius:3px">
-        <div style="font-size:8.5px;color:var(--cobalt);letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px">Auto Risk Scoring + Globe Pin</div>
-        <div style="font-size:11.5px;color:var(--steel);font-family:'Source Serif 4',serif;font-style:italic">Asset will appear on the 3D globe with risk pin and warning tab immediately after registration.</div>
+<!-- ── FIRST-RUN WELCOME OVERLAY (shown when user has 0 assets) ── -->
+<div id="welcome-overlay" class="hidden" style="position:absolute;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(2,9,18,.82);backdrop-filter:blur(6px)">
+  <div style="width:100%;max-width:460px;background:#04101f;border:1px solid rgba(14,165,233,.22);border-radius:6px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.7);margin:20px">
+    <!-- Corner brackets -->
+    <div style="position:relative;padding:28px 28px 24px">
+      <div style="position:absolute;top:-1px;left:-1px;width:14px;height:14px;border-top:1.5px solid #0EA5E9;border-left:1.5px solid #0EA5E9"></div>
+      <div style="position:absolute;bottom:-1px;right:-1px;width:14px;height:14px;border-bottom:1.5px solid #0EA5E9;border-right:1.5px solid #0EA5E9"></div>
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.3);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:18px;color:#0EA5E9;flex-shrink:0">M</div>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.12em;color:white">Welcome to Meteorium</div>
+          <div style="font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:#0EA5E9;opacity:.8">Climate Risk Intelligence Platform</div>
+        </div>
       </div>
-      <div class="mgrid">
-        <div class="fl"><label>Asset Name *</label><input class="fi" id="f-name" placeholder="Mumbai Logistics Hub"/></div>
-        <div class="fl"><label>Type</label><select class="fi" id="f-type"><option>Infrastructure</option><option>Energy</option><option>Financial</option><option>Manufacturing</option><option>Transport</option><option>Agriculture</option><option>Real Estate</option><option>Technology</option></select></div>
-        <div class="fl"><label>Country *</label><input class="fi" id="f-country" placeholder="India"/></div>
-        <div class="fl"><label>ISO Code</label><input class="fi" id="f-cc" placeholder="IND" maxlength="3"/></div>
-        <div class="fl"><label>Latitude *</label><input class="fi" id="f-lat" type="number" step="0.01" placeholder="18.93"/></div>
-        <div class="fl"><label>Longitude *</label><input class="fi" id="f-lon" type="number" step="0.01" placeholder="72.83"/></div>
-        <div class="fl"><label>Value USD millions *</label><input class="fi" id="f-val" type="number" placeholder="500"/></div>
-        <div class="fl"><label>Tier</label><select class="fi"><option>Tier 1 Critical</option><option>Tier 2 Essential</option><option>Tier 3 Standard</option></select></div>
+      <!-- Message -->
+      <div style="font-family:'Source Serif 4',serif;font-size:13px;color:#7BA4C0;line-height:1.7;margin-bottom:8px;font-style:italic">
+        Your portfolio is empty. Add your first asset to begin receiving real-time climate risk intelligence — physical scores, transition risk, compound event detection, and RCP 8.5 projections.
+      </div>
+      <!-- Steps -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.1);border-radius:3px">
+          <div style="width:20px;height:20px;border-radius:50%;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.3);display:flex;align-items:center;justify-content:center;font-size:9px;color:#0EA5E9;font-weight:700;flex-shrink:0">1</div>
+          <div style="font-size:10px;color:#E0F0FF">Enter asset name, location (lat/lon), and valuation</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.1);border-radius:3px">
+          <div style="width:20px;height:20px;border-radius:50%;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.3);display:flex;align-items:center;justify-content:center;font-size:9px;color:#0EA5E9;font-weight:700;flex-shrink:0">2</div>
+          <div style="font-size:10px;color:#E0F0FF">Rust Monte Carlo engine scores physical + transition risk</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(14,165,233,.05);border:1px solid rgba(14,165,233,.1);border-radius:3px">
+          <div style="width:20px;height:20px;border-radius:50%;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.3);display:flex;align-items:center;justify-content:center;font-size:9px;color:#0EA5E9;font-weight:700;flex-shrink:0">3</div>
+          <div style="font-size:10px;color:#E0F0FF">Pin appears on 3D globe with warning tab and heatmap</div>
+        </div>
+      </div>
+      <!-- Buttons -->
+      <div style="display:flex;gap:10px">
+        <button id="welcome-add-btn" style="flex:1;padding:12px;background:#0EA5E9;border:none;border-radius:3px;color:white;font-family:'Martian Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;box-shadow:0 0 20px rgba(14,165,233,.25)">
+          + Add First Asset
+        </button>
+        <button id="welcome-dismiss-btn" style="padding:12px 16px;background:transparent;border:1px solid rgba(14,165,233,.2);border-radius:3px;color:#2A4A65;font-family:'Martian Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">
+          Later
+        </button>
+      </div>
+      <div style="margin-top:10px;text-align:center;font-size:8px;color:#2A4A65;letter-spacing:.1em">You are signed in · Assets are private to your account</div>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop hidden" id="add-modal">
+  <div class="mbox" style="max-width:680px">
+    <div class="mhd">
+      <div class="mt2">Register New Asset</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:8.5px;color:var(--cobalt);letter-spacing:.12em;text-transform:uppercase" id="modal-save-status"></span>
+        <button class="mclose" id="modal-close">&#10005;</button>
       </div>
     </div>
-    <div class="mft"><button class="btn-s" id="modal-cancel">Cancel</button><button class="btn-p" id="modal-submit">Register &amp; Pin on Globe</button></div>
+    <div class="mbody" style="max-height:70vh;overflow-y:auto">
+      <div style="margin-bottom:16px;padding:8px 12px;background:rgba(14,165,233,.05);border:1px solid var(--wire);border-radius:3px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1"><div style="font-size:8.5px;color:var(--cobalt);letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px">Backend · Risk Engine · Globe Pin</div><div style="font-size:11px;color:var(--steel)">Asset saved to your account. Risk scores computed by Rust Monte Carlo engine. Pin appears on 3D globe immediately.</div></div>
+        <div class="sd live pulse" style="flex-shrink:0"></div>
+      </div>
+      <!-- ASSET AVATAR -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ghost);margin-bottom:10px">Asset Image / Avatar <span style="color:var(--ghost);font-weight:400;font-size:7px">(optional)</span></div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <!-- Preview circle -->
+          <div id="avatar-preview" style="width:72px;height:72px;border-radius:8px;background:rgba(14,165,233,.08);border:1.5px dashed rgba(14,165,233,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;position:relative;transition:border-color .2s" onclick="document.getElementById('f-avatar').click()">
+            <div id="avatar-placeholder" style="text-align:center">
+              <div style="font-size:22px;color:rgba(14,165,233,.4);margin-bottom:3px">&#9654;</div>
+              <div style="font-size:7px;color:var(--ghost);letter-spacing:.1em;text-transform:uppercase">Upload</div>
+            </div>
+            <img id="avatar-img" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0" alt="Asset avatar"/>
+          </div>
+          <!-- Upload controls -->
+          <div style="flex:1">
+            <input type="file" id="f-avatar" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none"/>
+            <div style="font-size:10px;color:var(--steel);margin-bottom:6px;line-height:1.5">Upload a photo, satellite image, or logo for this asset. Shown on the globe tooltip and portfolio table.</div>
+            <div style="display:flex;gap:6px">
+              <button type="button" id="avatar-upload-btn" style="padding:5px 12px;background:transparent;border:1px solid var(--wire);border-radius:3px;color:var(--steel);font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer" onclick="document.getElementById('f-avatar').click()">Choose Image</button>
+              <button type="button" id="avatar-clear-btn" style="padding:5px 10px;background:transparent;border:1px solid var(--wire);border-radius:3px;color:var(--ghost);font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:none" onclick="clearAvatar()">Clear</button>
+            </div>
+            <div style="margin-top:5px;font-size:8px;color:var(--ghost)">PNG, JPG, WEBP · Max 2MB · Square crop recommended</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ghost);margin-bottom:8px">Asset Identity</div>
+      <div class="mgrid" style="margin-bottom:14px">
+        <div class="fl"><label>Asset Name *</label><input class="fi" id="f-name" placeholder="Mumbai Logistics Hub"/></div>
+        <div class="fl"><label>Asset Type *</label><select class="fi" id="f-type"><option value="">Select type…</option><option>Infrastructure</option><option>Energy</option><option>Financial</option><option>Manufacturing</option><option>Transport</option><option>Agriculture</option><option>Real Estate</option><option>Technology</option><option>Healthcare</option><option>Mining</option></select></div>
+        <div class="fl"><label>Industry / Sector</label><input class="fi" id="f-industry" placeholder="Logistics &amp; Shipping"/></div>
+        <div class="fl"><label>Short Description</label><input class="fi" id="f-desc" placeholder="Port terminal handling 2M TEUs annually"/></div>
+      </div>
+      <div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ghost);margin-bottom:8px">Location</div>
+      <div class="mgrid" style="margin-bottom:14px">
+        <div class="fl"><label>Country *</label><input class="fi" id="f-country" placeholder="India"/></div>
+        <div class="fl"><label>ISO 3-letter Code</label><input class="fi" id="f-cc" placeholder="IND" maxlength="3" style="text-transform:uppercase;letter-spacing:.14em"/></div>
+        <div class="fl"><label>City / Region</label><input class="fi" id="f-city" placeholder="Mumbai"/></div>
+        <div class="fl"><label>Address (optional)</label><input class="fi" id="f-address" placeholder="Nhava Sheva, Navi Mumbai"/></div>
+        <div class="fl"><label>Latitude * <span style="font-size:8px;color:var(--ghost)">(decimal °)</span></label><input class="fi" id="f-lat" type="number" step="0.0001" min="-90" max="90" placeholder="18.9388"/></div>
+        <div class="fl"><label>Longitude * <span style="font-size:8px;color:var(--ghost)">(decimal °)</span></label><input class="fi" id="f-lon" type="number" step="0.0001" min="-180" max="180" placeholder="72.9356"/></div>
+      </div>
+      <div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ghost);margin-bottom:8px">Valuation</div>
+      <div class="mgrid" style="margin-bottom:14px">
+        <div class="fl"><label>Asset Value (USD millions) *</label><input class="fi" id="f-val" type="number" min="0" step="0.1" placeholder="450"/></div>
+        <div class="fl"><label>Annual Revenue (USD millions)</label><input class="fi" id="f-rev" type="number" min="0" step="0.1" placeholder="120"/></div>
+        <div class="fl"><label>Insurance Coverage (USD millions)</label><input class="fi" id="f-ins" type="number" min="0" step="0.1" placeholder="380"/></div>
+        <div class="fl"><label>Replacement Cost (USD millions)</label><input class="fi" id="f-replace" type="number" min="0" step="0.1" placeholder="520"/></div>
+        <div class="fl"><label>Tier</label><select class="fi" id="f-tier"><option value="1">Tier 1 · Critical Infrastructure</option><option value="2">Tier 2 · Essential Operations</option><option value="3" selected>Tier 3 · Standard Asset</option></select></div>
+        <div class="fl"><label>Ownership</label><select class="fi" id="f-own"><option>Owned</option><option>Leased</option><option>Joint Venture</option><option>Managed</option></select></div>
+      </div>
+      <div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ghost);margin-bottom:8px">Known Risk Factors <span style="color:var(--ghost);font-weight:400;font-size:7px">(improves scoring accuracy)</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="coastal" style="accent-color:#0EA5E9"> Coastal / Flood Plain</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="wildfire_zone"> Near Wildfire Zone</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="heat_stress"> High Heat Stress Region</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="water_stress"> Water Stressed Area</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="carbon_intensive"> Carbon Intensive Ops</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="supply_chain"> Supply Chain Risk</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="political"> Political Exposure</label>
+        <label style="display:flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--wire);border-radius:3px;cursor:pointer;font-size:9px;color:var(--steel)"><input type="checkbox" value="sea_level"> Sea Level Rise Risk</label>
+      </div>
+      <div class="fl"><label>Notes / Additional Context</label><textarea class="fi" id="f-notes" rows="2" placeholder="Strategic importance, known vulnerabilities, supply chain dependencies…" style="resize:vertical;font-family:'IBM Plex Sans',sans-serif;font-size:12px"></textarea></div>
+    </div>
+    <div class="mft" style="justify-content:space-between">
+      <div style="font-size:9px;color:var(--ghost)">* Required &nbsp;·&nbsp; Risk scored via Rust Monte Carlo + IPCC AR6</div>
+      <div style="display:flex;gap:8px"><button class="btn-s" id="modal-cancel">Cancel</button><button class="btn-p" id="modal-submit">Save &amp; Pin on Globe</button></div>
+    </div>
   </div>
 </div>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
@@ -390,379 +534,1174 @@ select.fi option{background:#04101f}
 <script src="modules/meteorium/globe.js"></script>
 <script>
 'use strict';
+
+/* ================================================================
+   METEORIUM — App Logic
+   All data real: loads from /assets on boot, saves on submit.
+   AI: 3 models routed through /claude /openai /gemini (Go gateway, raw provider JSON).
+   Simulation: calls Python data-engine directly (Go does not proxy /risk/simulate).
+   ================================================================ */
+
+var API_BASE         = 'https://prexus-intelligence.onrender.com';
+/* Python data-engine URL — Go risk.go exposes getDataEngineURL() internally,
+   but /risk/simulate is not proxied through Go gateway so frontend calls it direct.
+   Update this when your Python layer URL changes (e.g. separate Render service). */
+var DATA_ENGINE_URL  = 'https://prexus-intelligence.onrender.com';
+
+/* ── Utils ── */
 function pct(v){return(((v||0)*100).toFixed(1))+'%';}
 function usd(v){return v>=1000?'$'+(v/1000).toFixed(1)+'B':'$'+(v|0)+'M';}
 function rc(s){if(s>=.85)return'#EF4444';if(s>=.65)return'#F59E0B';if(s>=.45)return'#F97316';if(s>=.25)return'#0EA5E9';return'#10B981';}
 function rl(s){if(s>=.85)return'CRITICAL';if(s>=.65)return'HIGH';if(s>=.45)return'ELEVATED';if(s>=.25)return'MODERATE';return'LOW';}
 function rcl(s){if(s>=.85)return'critical';if(s>=.65)return'high';if(s>=.45)return'elevated';return'nominal';}
-var ASSETS=[
-  {id:'MUM-INF-001',name:'Mumbai Port Terminal',    type:'Infrastructure',country:'India',    cc:'IND',lat:18.93, lon:72.83, val:450, cr:.71,pr:.68,tr:.44,al:2},
-  {id:'DEL-ENE-002',name:'Delhi Power Grid Node',   type:'Energy',        country:'India',    cc:'IND',lat:28.61, lon:77.20, val:280, cr:.58,pr:.55,tr:.51,al:1},
-  {id:'MUM-FIN-003',name:'BKC Financial Complex',   type:'Financial',     country:'India',    cc:'IND',lat:19.06, lon:72.87, val:1200,cr:.42,pr:.38,tr:.56,al:0},
-  {id:'CHE-MFG-004',name:'Chennai Auto Cluster',    type:'Manufacturing', country:'India',    cc:'IND',lat:13.08, lon:80.27, val:320, cr:.65,pr:.71,tr:.38,al:1},
-  {id:'SGP-TRN-005',name:'Singapore PSA Terminal',  type:'Transport',     country:'Singapore',cc:'SGP',lat:1.27,  lon:103.82,val:890, cr:.33,pr:.28,tr:.42,al:0},
-  {id:'LON-FIN-006',name:'Canary Wharf Hub',        type:'Financial',     country:'UK',       cc:'GBR',lat:51.51, lon:-0.02, val:2100,cr:.28,pr:.24,tr:.38,al:0},
-  {id:'SHA-MFG-007',name:'Shanghai Industrial Zone',type:'Manufacturing', country:'China',    cc:'CHN',lat:31.23, lon:121.47,val:640, cr:.61,pr:.66,tr:.48,al:1},
-  {id:'SAO-AGR-008',name:'Sao Paulo Agri Hub',      type:'Agriculture',  country:'Brazil',   cc:'BRA',lat:-23.55,lon:-46.63,val:190, cr:.87,pr:.91,tr:.35,al:3},
-];
-var ALERTS=[
-  {id:'AL-001',asset:'SAO-AGR-008',name:'Sao Paulo Agri Hub',   sev:'CRITICAL',type:'PHYSICAL',  msg:'Fire-climate compound. Drought 82%, fire 87%, heat 74%. Damage amplifier 3.1x.',score:.87,src:'FIRMS+ERA5',ts:'09:14Z'},
-  {id:'AL-002',asset:'MUM-INF-001',name:'Mumbai Port Terminal', sev:'HIGH',    type:'PHYSICAL',  msg:'Monsoon anomaly +147% above baseline. Flood susceptibility elevated.',score:.71,src:'ERA5',ts:'08:57Z'},
-  {id:'AL-003',asset:'CHE-MFG-004',name:'Chennai Auto Cluster', sev:'HIGH',    type:'PHYSICAL',  msg:'Heat stress 68% over 7 days. Temperature anomaly +2.4C above ECMWF.',score:.65,src:'ECMWF',ts:'08:41Z'},
-  {id:'AL-004',asset:'SHA-MFG-007',name:'Shanghai Industrial',  sev:'ELEVATED',type:'TRANSITION',msg:'Carbon policy risk 0.71. CO2 intensity elevated under SSP2-4.5.',score:.61,src:'Carbon Monitor',ts:'08:22Z'},
-  {id:'AL-005',asset:'DEL-ENE-002',name:'Delhi Power Grid',     sev:'ELEVATED',type:'PHYSICAL',  msg:'Extreme heat probability 52%. Grid demand surge risk in peak summer.',score:.58,src:'ECMWF',ts:'07:55Z'},
-];
-var STATE={view:'globe',time:2025,globe:null,apiOnline:false,layers:{flood:false,wildfire:false,drought:false,heat:false,political:false,supply:false}};
-(function(){function tick(){var n=new Date();document.getElementById('clock').textContent=n.toISOString().slice(11,19)+' UTC';document.getElementById('dateline').textContent=n.toISOString().slice(0,10).replace(/-/g,'\xB7');}tick();setInterval(tick,1000);})();
-(function(){try{var u=JSON.parse(localStorage.getItem('prx_user')||'{}');var o=JSON.parse(localStorage.getItem('prexus_org_'+(u.email||''))||'{}');var nm=u.full_name||o.fullName||'Operator';document.getElementById('uname').textContent=nm;document.getElementById('urole').textContent=o.role||'Risk Analyst';document.getElementById('sb-name').textContent=nm;document.getElementById('sb-org').textContent=o.orgName||'Prexus Org';}catch(e){}})();
-var CRIT=ALERTS.filter(function(a){return a.sev==='CRITICAL';}).length;
-document.getElementById('rail-badge').textContent=CRIT;
-document.getElementById('nav-badge').textContent=CRIT;
-document.getElementById('alert-dot').className=CRIT>0?'sd warn':'sd live';
-document.getElementById('alert-lbl').textContent=CRIT>0?CRIT+' CRITICAL':'ALL NOMINAL';
-fetch('https://prexus-intelligence.onrender.com/health',{signal:AbortSignal.timeout(5000)}).then(function(r){if(r.ok){STATE.apiOnline=true;document.getElementById('api-dot').className='sd live';document.getElementById('api-lbl').textContent='API ONLINE';document.getElementById('rp-dot').className='sd live pulse';document.getElementById('rp-mode').textContent='API LIVE';}}).catch(function(){document.getElementById('api-dot').className='sd';document.getElementById('api-lbl').textContent='SIM MODE';});
+function tok(){return localStorage.getItem('prx_token')||'';}
+function authH(){var h={'Content-Type':'application/json'};if(tok())h['Authorization']='Bearer '+tok();return h;}
+function qs(id){return document.getElementById(id);}
+
+/* If token expires mid-session, clear and go back to landing */
+function handleExpired(){
+  localStorage.removeItem('prx_token');
+  window.location.replace('landing.html');
+}
+
+/* ── State ── */
+var ASSETS = [];   // loaded from backend — empty until user adds
+var ALERTS = [];   // loaded from backend or derived
+var STATE  = { view:'globe', time:2025, globe:null, apiOnline:false,
+               layers:{flood:false,wildfire:false,drought:false,heat:false,political:false,supply:false},
+               simType:'flood', simTarget:null };
+
+/* ── Clock ── */
+(function(){
+  function tick(){
+    var n=new Date();
+    qs('clock').textContent=n.toISOString().slice(11,19)+' UTC';
+    qs('dateline').textContent=n.toISOString().slice(0,10).replace(/-/g,'\xB7');
+  }
+  tick(); setInterval(tick,1000);
+})();
+
+/* ── Session user → topbar avatar shows ORG initials ── */
+function loadSession(){
+  try{
+    var u = JSON.parse(localStorage.getItem('prx_user') || '{}');
+    var o = JSON.parse(localStorage.getItem('prexus_org_' + (u.email||'')) || '{}');
+
+    var userName = u.full_name  || o.fullName  || '';
+    var orgName  = o.orgName   || '';
+    var jobTitle = o.jobTitle  || '';
+    var dept     = o.dept      || '';
+    var role     = o.role      || u.role || 'Risk Analyst';
+    /* ctx-role: jobTitle first, then dept — what user entered during org setup */
+    var roleDisplay = jobTitle ? (jobTitle + (dept ? ' \xB7 ' + dept : '')) : role;
+
+    // Topbar avatar: org name abbreviation (first 2 letters of org, or 1st letters of each word up to 2)
+    var orgInitials = orgName
+      ? orgName.split(/[\s\-_&]+/).filter(Boolean).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()
+      : (userName ? userName.split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase() : 'PR');
+    if(orgInitials.length === 0) orgInitials = 'PR';
+
+    var av = qs('uname-av');
+    if(av){ av.textContent = orgInitials; av.title = orgName || userName || 'Profile'; }
+
+    // Sidebar bottom
+    if(qs('sb-name')) qs('sb-name').textContent = orgName || userName || 'Operator';
+    if(qs('sb-org'))  qs('sb-org').textContent  = roleDisplay + (o.country ? ' \xB7 ' + o.country : '');
+
+    // Right panel context card
+    if(qs('ctx-avatar')) qs('ctx-avatar').textContent = orgInitials;
+    // ctx-name = org name; ctx-role = person's job title + dept
+    if(qs('ctx-name'))   qs('ctx-name').textContent = orgName || userName || 'Organization';
+    if(qs('ctx-role'))   qs('ctx-role').textContent = (userName ? userName + ' \xB7 ' : '') + roleDisplay;
+  }catch(e){}
+}
+/* loadSession() is called inside boot after auth check passes */
+
+/* ── Load assets from backend ── */
+function loadAssets(cb){
+  fetch(API_BASE+'/assets',{headers:authH()})
+    .then(function(r){
+      if(r.status===401){ handleExpired(); return; }
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    })
+    .then(function(data){
+      if(!data) return; /* redirecting */
+      ASSETS = Array.isArray(data) ? data : (data.assets||[]);
+      // Normalise — Go returns: latitude, longitude, composite_risk, physical_risk, transition_risk
+      ASSETS = ASSETS.map(function(a){
+        return {
+          id:      a.id          || a.asset_id   || 'AST-'+Math.random().toString(36).slice(2,7).toUpperCase(),
+          name:    a.name        || a.asset_name || 'Unknown Asset',
+          type:    a.type        || a.asset_type || 'Infrastructure',
+          country: a.country     || '',
+          cc:      a.cc          || a.country_code || (a.country||'').slice(0,3).toUpperCase(),
+          city:    a.city        || '',
+          lat:     parseFloat(a.latitude  != null ? a.latitude  : (a.lat != null ? a.lat : 0)),
+          lon:     parseFloat(a.longitude != null ? a.longitude : (a.lon != null ? a.lon : 0)),
+          val:     parseFloat(a.value_mm  != null ? a.value_mm  : (a.val != null ? a.val : (a.value != null ? a.value : 0))),
+          cr:      parseFloat(a.composite_risk  != null ? a.composite_risk  : (a.cr != null ? a.cr : (a.risk_score  != null ? a.risk_score  : 0))),
+          pr:      parseFloat(a.physical_risk   != null ? a.physical_risk   : (a.pr != null ? a.pr : 0)),
+          tr:      parseFloat(a.transition_risk != null ? a.transition_risk : (a.tr != null ? a.tr : 0)),
+          al:      parseInt(   a.alerts         != null ? a.alerts          : (a.al != null ? a.al : 0), 10),
+        };
+      });
+      if(cb) cb();
+    })
+    .catch(function(err){
+      console.warn('[Meteorium] /assets error:', err);
+      if(cb) cb(); /* proceed with empty ASSETS — show empty state */
+    });
+}
+
+/* ── Load alerts from backend ── */
+function loadAlerts(cb){
+  fetch(API_BASE+'/alerts',{headers:authH()})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject('HTTP '+r.status); })
+    .then(function(data){
+      var raw = Array.isArray(data) ? data : (data.alerts || data.data || []);
+      /*
+       * Normalise Go snake_case → UI fields.
+       * Go /alerts may return e.g. { alert_id, severity, risk_score, asset_id,
+       * asset_name, message, source, timestamp } depending on db.go schema.
+       */
+      ALERTS = raw.map(function(a){
+        return {
+          id:       a.id         || a.alert_id    || '',
+          asset:    a.asset_id   || a.asset        || '',
+          name:     a.asset_name || a.name         || a.asset_id || 'Unknown Asset',
+          sev:     (a.severity   || a.sev          || 'ELEVATED').toUpperCase(),
+          type:    (a.risk_type  || a.type         || a.alert_type || 'PHYSICAL').toUpperCase(),
+          msg:      a.message    || a.msg          || a.description || a.details || '',
+          score:  +(a.risk_score || a.score        || a.composite_risk || 0),
+          src:      a.source     || a.src          || a.data_source   || '',
+          ts:       a.timestamp  || a.ts           || a.created_at    || '',
+        };
+      });
+      if(cb) cb();
+    })
+    .catch(function(err){
+      console.warn('[Meteorium] /alerts failed:', err);
+      ALERTS = [];
+      if(cb) cb();
+    });
+}
+
+/* ── API health check ── */
+function checkAPI(){
+  fetch(API_BASE+'/health',{signal:AbortSignal.timeout(5000)})
+    .then(function(r){
+      if(r.ok){
+        STATE.apiOnline=true;
+        qs('api-dot').className='sd live';
+        qs('api-lbl').textContent='API ONLINE';
+        if(qs('rp-dot')) qs('rp-dot').className='sd live pulse';
+        if(qs('rp-mode')) qs('rp-mode').textContent='LIVE';
+      }
+    })
+    .catch(function(){
+      qs('api-dot').className='sd';
+      qs('api-lbl').textContent='SIM MODE';
+    });
+}
+
+/* ── Badge counters (only real alerts) ── */
+function updateBadges(){
+  var crit = ALERTS.filter(function(a){return a.sev==='CRITICAL'||a.severity==='CRITICAL';}).length;
+  qs('rail-badge').textContent = crit||'';
+  qs('rail-badge').style.display = crit?'flex':'none';
+  if(qs('nav-badge')){qs('nav-badge').textContent=crit;qs('nav-badge').style.display=crit?'':'none';}
+  qs('alert-dot').className = crit>0?'sd warn':'sd live';
+  qs('alert-lbl').textContent = crit>0?crit+' CRITICAL':'NO ALERTS';
+  if(qs('ctx-assets')) qs('ctx-assets').textContent = ASSETS.length;
+  updateSimTarget();
+}
+
+/* ── Navigation ── */
+var PANEL_TITLES = {
+  dashboard:'Intelligence Overview', alerts:'Alert Command Center',
+  portfolio:'Asset Portfolio', signals:'Climate Signals',
+  pipeline:'Pipeline Architecture', sources:'Data Source Registry'
+};
+
+function navigate(v){
+  STATE.view=v;
+  document.querySelectorAll('.ri[data-view],.ni[data-view]').forEach(function(el){
+    el.classList.toggle('on', el.dataset.view===v);
+  });
+  var gv=qs('globe-view');
+  var vh=qs('view-header');
+  document.querySelectorAll('.view-panel').forEach(function(p){p.classList.remove('active');});
+  if(v==='globe'){
+    gv.style.display='flex'; vh.classList.add('hidden');
+    initGlobe();
+  } else {
+    gv.style.display='none'; vh.classList.remove('hidden');
+    var tp=qs('panel-'+v);
+    if(tp){tp.classList.add('active'); renderPanel(v,tp);}
+    qs('view-title').textContent=PANEL_TITLES[v]||v;
+    qs('view-tag').textContent=v.toUpperCase();
+  }
+}
+
+document.querySelectorAll('[data-view]').forEach(function(el){
+  el.addEventListener('click',function(){navigate(el.dataset.view);});
+});
+
+/* ── Globe init — always starts with empty asset list.
+   Assets are added via STATE.globe.addAsset() after loadAssets() completes. ── */
 function initGlobe(){
-  if(STATE.globe||typeof MeteoGlobe==='undefined')return;
-  STATE.globe=new MeteoGlobe(document.getElementById('globe-container'),ASSETS,{
-    onHover:function(asset,pos){
-      var tip=document.getElementById('globe-tooltip');
-      if(!asset){tip.style.display='none';return;}
+  if(STATE.globe) return; /* already running */
+  if(typeof MeteoGlobe === 'undefined'){
+    /* globe.js or Cesium didn't load — show error in container */
+    var c = qs('globe-container');
+    if(c) c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:#2A4A65;font-family:\'Martian Mono\',monospace;font-size:10px;text-align:center;padding:40px">' +
+      '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:#0EA5E9;letter-spacing:.12em">GLOBE OFFLINE</div>' +
+      '<div style="line-height:1.7">CesiumJS failed to load.<br>Check internet connection — CDN scripts required.<br>Make sure modules/meteorium/globe.js is in the correct folder.</div>' +
+      '</div>';
+    return;
+  }
+  STATE.globe = new MeteoGlobe(qs('globe-container'), [], {
+    onHover: function(asset, pos){
+      var tip=qs('globe-tooltip');
+      if(!asset){tip.style.display='none'; return;}
       var rs=window.GlobeRiskScore(asset.cr);
-      document.getElementById('tt-name').textContent=asset.name;
-      document.getElementById('tt-id').textContent=asset.id+' \xB7 '+asset.country+' \xB7 '+asset.type;
-      document.getElementById('tt-cr').textContent=pct(asset.cr);document.getElementById('tt-cr').style.color=rs.col;
-      document.getElementById('tt-pr').textContent=pct(asset.pr);document.getElementById('tt-pr').style.color=rc(asset.pr);
-      document.getElementById('tt-tr').textContent=pct(asset.tr);document.getElementById('tt-tr').style.color=rc(asset.tr);
-      var sv=document.getElementById('tt-sev');sv.textContent=rs.label;sv.style.background=rs.col+'22';sv.style.border='1px solid '+rs.col+'55';sv.style.color=rs.col;
+      qs('tt-name').textContent=asset.name;
+      qs('tt-id').textContent=asset.id+' \xB7 '+asset.country+' \xB7 '+asset.type;
+      qs('tt-cr').textContent=pct(asset.cr); qs('tt-cr').style.color=rs.col;
+      qs('tt-pr').textContent=pct(asset.pr); qs('tt-pr').style.color=rc(asset.pr);
+      qs('tt-tr').textContent=pct(asset.tr); qs('tt-tr').style.color=rc(asset.tr);
+      var sv=qs('tt-sev'); sv.textContent=rs.label;
+      sv.style.cssText='background:'+rs.col+'22;border:1px solid '+rs.col+'55;color:'+rs.col;
       if(pos){tip.style.left=(pos.x+16)+'px';tip.style.top=(pos.y-32)+'px';}
       tip.style.display='block';
     },
-    onSelect:function(asset){document.getElementById('sim-target').textContent=asset.name;}
+    onSelect: function(asset){
+      STATE.simTarget=asset;
+      updateSimTarget();
+    }
   });
   STATE.globe.init();
 }
-function navigate(v){
-  STATE.view=v;
-  document.querySelectorAll('.ri[data-view],.ni[data-view]').forEach(function(el){el.classList.toggle('on',el.dataset.view===v);});
-  var gv=document.getElementById('globe-view');
-  var vh=document.getElementById('view-header');
-  document.querySelectorAll('.view-panel').forEach(function(p){p.classList.remove('active');});
-  if(v==='globe'){gv.style.display='flex';vh.classList.add('hidden');initGlobe();}
-  else{gv.style.display='none';vh.classList.remove('hidden');var tp=document.getElementById('panel-'+v);if(tp){tp.classList.add('active');renderPanel(v,tp);}document.getElementById('view-title').textContent={dashboard:'Intelligence Overview',alerts:'Alert Command Center',portfolio:'Asset Portfolio',signals:'Climate Signals',pipeline:'Pipeline Architecture',sources:'Data Source Registry'}[v]||v;document.getElementById('view-tag').textContent=v.toUpperCase();}
-}
-function renderPanel(v,el){
-  el.innerHTML='';
-  if(v==='dashboard')buildDash(el);
-  else if(v==='alerts')buildAlerts(el);
-  else if(v==='portfolio')buildPortfolio(el);
-  else if(v==='signals')buildSignals(el);
-  else if(v==='pipeline')buildPipeline(el);
-  else if(v==='sources')buildSources(el);
-}
-document.querySelectorAll('[data-view]').forEach(function(el){el.addEventListener('click',function(){navigate(el.dataset.view);});});
-document.querySelectorAll('.map-btn').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('.map-btn').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');});});
-document.getElementById('globe-reset').addEventListener('click',function(){if(STATE.globe)STATE.globe.flyToGlobal();});
-document.getElementById('globe-add-btn').addEventListener('click',function(){document.getElementById('add-modal').classList.remove('hidden');});
-function syncLayers(){var nl={flood:document.getElementById('l-flood').checked,wildfire:document.getElementById('l-wildfire').checked,drought:document.getElementById('l-drought').checked,heat:document.getElementById('l-heat').checked,political:document.getElementById('l-political').checked,supply:document.getElementById('l-supply').checked};STATE.layers=nl;if(STATE.globe)STATE.globe.setLayers(nl);}
-['l-flood','l-wildfire','l-drought','l-heat','l-political','l-supply'].forEach(function(id){document.getElementById(id).addEventListener('change',syncLayers);});
-document.querySelectorAll('.rl-row').forEach(function(row){row.addEventListener('click',function(e){if(e.target.tagName!=='INPUT'){var cb=row.querySelector('input');if(cb){cb.checked=!cb.checked;syncLayers();}}});});
-document.getElementById('tslider').addEventListener('input',function(){var yr=+this.value;STATE.time=yr;document.getElementById('time-val').textContent=yr;document.getElementById('rcp-prog').style.width=Math.round((yr-2023)/27*100)+'%';document.getElementById('temp-delta').textContent='+'+(((yr-2023)/27)*3.2).toFixed(1)+'\xB0C';if(STATE.globe)STATE.globe.setTime(yr);});
-document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('add-modal').classList.add('hidden');});
-document.getElementById('modal-cancel').addEventListener('click',function(){document.getElementById('add-modal').classList.add('hidden');});
-document.getElementById('add-modal').addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden');});
-document.getElementById('modal-submit').addEventListener('click',function(){var n=document.getElementById('f-name').value.trim();var co=document.getElementById('f-country').value.trim();var la=document.getElementById('f-lat').value;var lo=document.getElementById('f-lon').value;var vv=document.getElementById('f-val').value;if(!n||!co||!la||!lo||!vv){alert('Fill required fields.');return;}var cr=+(Math.random()*.55+.18).toFixed(2);var tp=document.getElementById('f-type').value;var a={id:'NEW-'+tp.slice(0,3).toUpperCase()+'-'+Date.now().toString(36).toUpperCase().slice(-4),name:n,type:tp,country:co,cc:document.getElementById('f-cc').value||co.slice(0,3).toUpperCase(),lat:+la,lon:+lo,val:+vv,cr:cr,pr:+(cr*.9+Math.random()*.08).toFixed(2),tr:+(Math.random()*.45+.12).toFixed(2),al:0};ASSETS.push(a);if(STATE.globe)STATE.globe.addAsset(a);document.getElementById('add-modal').classList.add('hidden');renderQuickList();fetch('https://prexus-intelligence.onrender.com/assets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(a)}).catch(function(){});});
-/* ─────────────────────────────────────────────────────
-   METO AI — 3-Model System
-   Routes: Claude / OpenAI GPT-4 / Gemini
-   All calls proxy through prexus backend (env keys stay server-side)
-   Falls back to direct API if backend returns non-200
-   User context pulled from localStorage on every request
-   ───────────────────────────────────────────────────── */
 
-var AI_MODEL = 'claude'; // active model
+/* Globe empty-state nudge — shown when user has no assets.
+   Sits on top of the globe. Any click on the globe opens add modal. */
+function showGlobeEmptyState(){
+  var existing = qs('globe-empty-nudge');
+  if(existing) return; /* already shown */
 
-var MODEL_META = {
+  var nudge = document.createElement('div');
+  nudge.id = 'globe-empty-nudge';
+  nudge.style.cssText = [
+    'position:absolute',
+    'bottom:90px',       /* above time bar */
+    'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:90',
+    'background:rgba(4,16,31,0.94)',
+    'border:1px solid rgba(14,165,233,0.35)',
+    'border-radius:6px',
+    'padding:18px 28px',
+    'text-align:center',
+    'backdrop-filter:blur(12px)',
+    'box-shadow:0 20px 60px rgba(0,0,0,0.6)',
+    'cursor:pointer',
+    'max-width:340px',
+    'width:calc(100% - 48px)'
+  ].join(';');
+
+  nudge.innerHTML = [
+    '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;letter-spacing:.12em;color:white;margin-bottom:6px">',
+      'No Assets on Globe',
+    '</div>',
+    '<div style="font-family:\'Source Serif 4\',serif;font-size:12px;color:#7BA4C0;line-height:1.6;font-style:italic;margin-bottom:16px">',
+      'Register your first asset to start receiving real-time climate risk intelligence, heatwave overlays, and disaster simulations.',
+    '</div>',
+    '<button style="',
+      'padding:10px 24px;',
+      'background:#0EA5E9;',
+      'border:none;',
+      'border-radius:4px;',
+      'color:white;',
+      'font-family:\'Martian Mono\',monospace;',
+      'font-size:11px;',
+      'letter-spacing:.1em;',
+      'text-transform:uppercase;',
+      'cursor:pointer;',
+      'box-shadow:0 0 20px rgba(14,165,233,0.4)',
+    '">+ Add First Asset</button>'
+  ].join('');
+
+  nudge.addEventListener('click', function(){
+    qs('add-modal').classList.remove('hidden');
+  });
+
+  /* Also make any click on the globe canvas itself open the modal when empty */
+  var container = qs('globe-container');
+  if(container){
+    container._emptyClickHandler = function(){
+      if(ASSETS.length===0) qs('add-modal').classList.remove('hidden');
+    };
+    container.addEventListener('click', container._emptyClickHandler);
+  }
+
+  var globeView = qs('globe-view');
+  if(globeView) globeView.appendChild(nudge);
+}
+
+/* Remove empty-state nudge once user has at least one asset */
+function hideGlobeEmptyState(){
+  var nudge = qs('globe-empty-nudge');
+  if(nudge) nudge.parentNode.removeChild(nudge);
+  /* Remove the canvas click-to-add handler */
+  var container = qs('globe-container');
+  if(container && container._emptyClickHandler){
+    container.removeEventListener('click', container._emptyClickHandler);
+    delete container._emptyClickHandler;
+  }
+}
+
+/* ── Map type selector ── */
+document.querySelectorAll('.map-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('.map-btn').forEach(function(b){b.classList.remove('on');});
+    btn.classList.add('on');
+  });
+});
+
+document.getElementById('globe-reset').addEventListener('click',function(){
+  if(STATE.globe) STATE.globe.flyToGlobal();
+});
+document.getElementById('globe-add-btn').addEventListener('click',function(){
+  qs('add-modal').classList.remove('hidden');
+});
+
+/* ── Risk layer toggles → globe ── */
+function syncLayers(){
+  var nl={
+    flood:    qs('l-flood').checked,
+    wildfire: qs('l-wildfire').checked,
+    drought:  qs('l-drought').checked,
+    heat:     qs('l-heat').checked,
+    political:qs('l-political').checked,
+    supply:   qs('l-supply').checked
+  };
+  STATE.layers=nl;
+  if(STATE.globe) STATE.globe.setLayers(nl);
+}
+['l-flood','l-wildfire','l-drought','l-heat','l-political','l-supply'].forEach(function(id){
+  qs(id).addEventListener('change',syncLayers);
+});
+document.querySelectorAll('.rl-row').forEach(function(row){
+  row.addEventListener('click',function(e){
+    if(e.target.tagName!=='INPUT'){
+      var cb=row.querySelector('input');
+      if(cb){cb.checked=!cb.checked; syncLayers();}
+    }
+  });
+});
+
+/* ── Time slider ── */
+qs('tslider').addEventListener('input',function(){
+  var yr=+this.value;
+  STATE.time=yr;
+  qs('time-val').textContent=yr;
+  qs('rcp-prog').style.width=Math.round((yr-2023)/27*100)+'%';
+  qs('temp-delta').textContent='+'+(((yr-2023)/27)*3.2).toFixed(1)+'\xB0C';
+  if(STATE.globe) STATE.globe.setTime(yr);
+});
+
+/* ================================================================
+   METO AI — 3 Models
+   Routes through backend proxy (keys are server-side).
+   Fixed: no AbortSignal.timeout, no CSS vars in JS styles,
+   no template literals.
+   ================================================================ */
+
+var AI_MODEL = 'claude';
+
+/*
+ * MODEL_CFG — one entry per provider.
+ * buildPayload(messages, systemPrompt): returns the body your Go handler expects.
+ * parseResponse(d): extracts the text string from whatever Go returns.
+ *
+ * Your Go gateway (/claude, /openai, /gemini) should accept these shapes
+ * and forward to each provider's API using your server-side keys.
+ * All three routes should return: { text: "..." } OR the raw provider response.
+ */
+var MODEL_CFG = {
   claude: {
-    label: 'CLAUDE',
-    name:  'claude-sonnet-4',
+    name:  'claude-sonnet-4-20250514',
+    label: 'Claude',
     badge: 'CLAUDE',
-    badgeClass: 'cobalt',
-    status: 'claude-sonnet-4 \xB7 via prexus backend',
-    endpoint: API_BASE + '/claude',           // backend/apps/api-gateway/claude.go
-    fallback: 'https://api.anthropic.com/v1/messages'
+    color: '#0EA5E9',
+    endpoint: '/claude',
+    /* Go claude.go already handles Anthropic format */
+    buildPayload: function(messages, sys) {
+      return {
+        model:      'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system:     sys,
+        messages:   messages   /* [{role:'user'|'assistant', content:'...'}] */
+      };
+    },
+    parseResponse: function(d) {
+      /* Go /claude returns raw Anthropic JSON — d.content[0].text */
+      return (d.content && d.content[0] && d.content[0].text) || '';
+    }
   },
   openai: {
-    label: 'GPT-4',
     name:  'gpt-4o',
+    label: 'GPT-4o',
     badge: 'GPT-4o',
-    badgeClass: 'green',
-    status: 'gpt-4o \xB7 via prexus backend',
-    endpoint: API_BASE + '/openai',           // needs openai.go in gateway
-    fallback: 'https://api.openai.com/v1/chat/completions'
+    color: '#10B981',
+    endpoint: '/openai',
+    /* OpenAI format: system goes as first message with role:'system' */
+    buildPayload: function(messages, sys) {
+      var msgs = [{ role: 'system', content: sys }].concat(messages);
+      return {
+        model:      'gpt-4o',
+        max_tokens: 1000,
+        messages:   msgs
+      };
+    },
+    parseResponse: function(d) {
+      /* Go /openai returns raw OpenAI JSON — d.choices[0].message.content */
+      return (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
+    }
   },
   gemini: {
-    label: 'GEMINI',
     name:  'gemini-1.5-pro',
+    label: 'Gemini',
     badge: 'GEMINI',
-    badgeClass: 'amber',
-    status: 'gemini-1.5-pro \xB7 via prexus backend',
-    endpoint: API_BASE + '/gemini',           // needs gemini.go in gateway
-    fallback: null
+    color: '#F59E0B',
+    endpoint: '/gemini',
+    /* Gemini format: contents array, system via systemInstruction */
+    buildPayload: function(messages, sys) {
+      var contents = messages.map(function(m) {
+        return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] };
+      });
+      return {
+        model: 'gemini-1.5-pro',
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: contents,
+        generationConfig: { maxOutputTokens: 1000 }
+      };
+    },
+    parseResponse: function(d) {
+      /* Go /gemini returns raw Gemini JSON — d.candidates[0].content.parts[0].text */
+      return (d.candidates && d.candidates[0] &&
+              d.candidates[0].content && d.candidates[0].content.parts &&
+              d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text) || '';
+    }
   }
 };
 
-/* Pull full user context from localStorage */
-function getUserContext() {
-  var user = {}, org = {};
-  try { user = JSON.parse(localStorage.getItem('prx_user') || '{}'); } catch(e) {}
-  try { org  = JSON.parse(localStorage.getItem('prexus_org_' + (user.email||'')) || '{}'); } catch(e) {}
+/* Chat history per model */
+var CHAT = { claude:[], openai:[], gemini:[] };
 
-  // Saved assets: the backend may persist these; locally we also track additions
-  var savedCount = ASSETS.length;
-  try {
-    var stored = JSON.parse(localStorage.getItem('prx_assets_' + (user.email||'')) || '[]');
-    if (stored.length) savedCount = stored.length;
-  } catch(e) {}
-
-  return {
-    name:    user.full_name  || org.fullName  || 'Operator',
-    role:    user.role       || org.role      || 'Risk Analyst',
-    org:     org.orgName     || org.name      || 'Prexus Organization',
-    email:   user.email      || '',
-    country: org.country     || '',
-    assets:  savedCount,
-    token:   localStorage.getItem('prx_token') || ''
-  };
+function buildCtx(){
+  try{
+    var u=JSON.parse(localStorage.getItem('prx_user')||'{}');
+    var o=JSON.parse(localStorage.getItem('prexus_org_'+(u.email||''))||'{}');
+    var tv=ASSETS.reduce(function(s,a){return s+a.val;},0);
+    var cr=tv>0?ASSETS.reduce(function(s,a){return s+a.cr*a.val;},0)/tv:0;
+    return 'You are Meto AI, the climate risk intelligence assistant inside Meteorium by Prexus Intelligence. '+
+      'Analyze physical and transition climate risk using IPCC AR6, NASA FIRMS, ERA5, Rust Monte Carlo engine. '+
+      'Be concise, data-driven, use percentages and Celsius. '+
+      '\nUSER: '+( u.full_name||o.fullName||'Operator')+' | Role: '+(u.role||o.role||'Risk Analyst')+' | Org: '+(o.orgName||'Prexus')+
+      '\nPORTFOLIO: '+ASSETS.length+' assets | Value: '+usd(tv)+' | Composite risk: '+(cr*100).toFixed(1)+'%'+
+      '\nGLOBE STATE: RCP 8.5 year '+STATE.time+', +'+(((STATE.time-2023)/27)*3.2).toFixed(1)+'C warming'+
+      '\nASSETS:\n'+ASSETS.slice(0,12).map(function(a){
+        return '- '+a.name+' ('+a.id+'): '+(a.cr*100).toFixed(0)+'% composite, '+a.country+', '+usd(a.val);
+      }).join('\n');
+  }catch(e){ return 'You are Meto AI climate risk analyst inside Meteorium by Prexus.'; }
 }
 
-/* Render user context card */
-function renderUserCtx() {
-  var u = getUserContext();
-  var initials = u.name.split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase() || 'M';
-  document.getElementById('ctx-avatar').textContent = initials;
-  document.getElementById('ctx-name').textContent   = u.name;
-  document.getElementById('ctx-role').textContent   = u.role + (u.org ? ' \xB7 ' + u.org : '');
-  document.getElementById('ctx-assets').textContent = u.assets;
-}
-renderUserCtx();
-
-/* Build rich system prompt using live user + globe state */
-function buildSystemPrompt() {
-  var u = getUserContext();
-  var critAlerts = ALERTS.filter(function(a){return a.sev==='CRITICAL';});
-  var topAsset = [].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;})[0];
-  var tv = ASSETS.reduce(function(s,a){return s+a.val;},0);
-  var cr = tv > 0 ? ASSETS.reduce(function(s,a){return s+a.cr*a.val;},0)/tv : 0;
-  var activeLayerNames = Object.keys(STATE.layers).filter(function(k){return STATE.layers[k];});
-
-  return 'You are Meto AI, the climate risk intelligence assistant inside Meteorium by Prexus Intelligence. ' +
-    'You provide expert analysis on physical and transition climate risk for infrastructure assets. ' +
-    'You use IPCC AR6, NASA FIRMS, ERA5, Copernicus, and Rust Monte Carlo engines. ' +
-    'Always be concise, data-driven, and actionable. Use percentages, temperatures in Celsius. ' +
-    '\n\nUSER CONTEXT:' +
-    '\n- Name: ' + u.name +
-    '\n- Role: ' + u.role +
-    '\n- Organization: ' + u.org +
-    (u.country ? '\n- Country: ' + u.country : '') +
-    '\n\nPORTFOLIO STATE:' +
-    '\n- Total assets: ' + ASSETS.length + ' registered on globe' +
-    '\n- Portfolio value: ' + (tv >= 1000 ? '$'+(tv/1000).toFixed(1)+'B' : '$'+tv+'M') +
-    '\n- Composite risk: ' + (cr*100).toFixed(1) + '%' +
-    '\n- Active alerts: ' + ALERTS.length + ' (' + critAlerts.length + ' CRITICAL)' +
-    '\n- Highest risk: ' + (topAsset ? topAsset.name + ' at ' + (topAsset.cr*100).toFixed(1) + '%' : 'none') +
-    '\n\nGLOBE STATE:' +
-    '\n- RCP 8.5 scenario year: ' + STATE.time +
-    '\n- Projected warming vs 2023: +' + (((STATE.time-2023)/27)*3.2).toFixed(1) + 'C' +
-    (activeLayerNames.length ? '\n- Active risk layers: ' + activeLayerNames.join(', ') : '') +
-    '\n\nASSETS ON GLOBE:\n' +
-    ASSETS.map(function(a){
-      return '- ' + a.name + ' (' + a.id + '): ' + (a.cr*100).toFixed(0) + '% composite, ' +
-        a.country + ', $' + a.val + 'M' + (a.al > 0 ? ', ' + a.al + ' alert(s)' : '');
-    }).join('\n');
-}
-
-/* ── Core AI call — tries backend proxy first, then direct ── */
-function callMetoAI(model, messages, onSuccess, onError) {
-  var meta = MODEL_META[model];
-  var u = getUserContext();
-  var headers = { 'Content-Type': 'application/json' };
-  if (u.token) headers['Authorization'] = 'Bearer ' + u.token;
-
-  // Payload format backend expects (Go gateway normalizes to each provider)
-  var payload = {
-    model:    meta.name,
-    messages: messages,
-    system:   buildSystemPrompt(),
-    max_tokens: 1000
-  };
-
-  fetch(meta.endpoint, {
-    method: 'POST',
-    headers: headers,
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(30000)
-  })
-  .then(function(r) {
-    if (!r.ok) throw new Error('Backend ' + r.status);
-    return r.json();
-  })
-  .then(function(d) {
-    // Backend normalizes response to { text: "..." }
-    var text = d.text || (d.content && d.content[0] && d.content[0].text) || d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content || '';
-    if (!text) throw new Error('Empty response');
-    onSuccess(text);
-  })
-  .catch(function(err) {
-    console.warn('[MetoAI] Backend failed (' + err.message + '), trying direct...');
-    // Direct fallback (only works if key is somehow available or CORS allows)
-    if (meta.fallback && model === 'claude') {
-      fetch(meta.fallback, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: buildSystemPrompt(),
-          messages: messages
-        }),
-        signal: AbortSignal.timeout(25000)
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var text = d.content && d.content[0] ? d.content[0].text : '';
-        if (!text) throw new Error('No text');
-        onSuccess(text);
-      })
-      .catch(function() { onError(model); });
-    } else {
-      onError(model);
+function getWelcome(model){
+  var cfg=MODEL_CFG[model];
+  try{
+    var u=JSON.parse(localStorage.getItem('prx_user')||'{}');
+    var o=JSON.parse(localStorage.getItem('prexus_org_'+(u.email||''))||'{}');
+    var first=(u.full_name||o.fullName||'').split(' ')[0]||'there';
+    if(ASSETS.length===0){
+      return 'Hello '+first+'. I am Meto AI on '+cfg.name+'. Your portfolio has no assets yet. Add your first asset using the + button on the globe to start receiving real climate risk intelligence.';
     }
+    var top=[].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;})[0];
+    return 'Hello '+first+'. I am Meto AI on '+cfg.name+'. Your portfolio has '+ASSETS.length+' assets on the globe. '+
+      (top?'Highest risk: '+top.name+' at '+(top.cr*100).toFixed(1)+'%. ':'')+
+      'RCP 8.5 year is '+STATE.time+'. Ask me anything.';
+  }catch(e){
+    return 'Hello. I am Meto AI on '+cfg.name+'. Add your assets to receive climate risk intelligence.';
+  }
+}
+
+/* Initialize welcome messages */
+function initChat(){
+  Object.keys(MODEL_CFG).forEach(function(m){
+    if(CHAT[m].length===0) CHAT[m]=[{r:'b',t:getWelcome(m)}];
   });
+  renderChat();
 }
 
-/* ── Chat state per model ── */
-var CHAT_STATE = {
-  claude: [],
-  openai: [],
-  gemini: []
-};
-
-function getWelcome(model) {
-  var u = getUserContext();
-  var meta = MODEL_META[model];
-  var top = [].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;})[0];
-  return 'Hello ' + u.name.split(' ')[0] + '. I am Meto AI running on ' + meta.name + '. ' +
-    'Your portfolio has ' + ASSETS.length + ' assets on the globe. ' +
-    (top ? 'Highest risk: ' + top.name + ' at ' + (top.cr*100).toFixed(1) + '%. ' : '') +
-    'RCP 8.5 year is ' + STATE.time + '. Ask me anything about risk, scenarios, or assets.';
-}
-
-// Initialize welcome messages for each model
-['claude','openai','gemini'].forEach(function(m) {
-  CHAT_STATE[m] = [{ r:'b', t: getWelcome(m) }];
-});
-
-function renderChat() {
-  var msgs = CHAT_STATE[AI_MODEL];
-  var c = document.getElementById('ai-chat');
-  c.innerHTML = msgs.map(function(m) {
-    var lbl = m.r === 'u' ? 'YOU' : 'METO AI \xB7 ' + MODEL_META[AI_MODEL].label;
-    return '<div class="ai-bub ' + (m.r==='u' ? 'u' : 'b') + '">' +
-      '<div class="ai-lbl">' + lbl + '</div>' +
-      '<div style="white-space:pre-wrap">' + m.t + '</div></div>';
+function renderChat(){
+  var msgs=CHAT[AI_MODEL];
+  var cfg=MODEL_CFG[AI_MODEL];
+  var c=qs('ai-chat');
+  if(!c) return;
+  c.innerHTML=msgs.map(function(m){
+    var lbl=m.r==='u'?'YOU':'METO AI \xB7 '+cfg.label.toUpperCase();
+    var cls=m.r==='u'?'u':'b';
+    return '<div class="ai-bub '+cls+'"><div class="ai-lbl" style="color:'+(m.r==='u'?'#0EA5E9':cfg.color)+'">'+lbl+'</div>'+
+      '<div style="white-space:pre-wrap">'+m.t+'</div></div>';
   }).join('');
-  c.scrollTop = c.scrollHeight;
+  c.scrollTop=c.scrollHeight;
 }
 
-function sendAI() {
-  var inp = document.getElementById('ai-input');
-  var btn = document.getElementById('ai-send');
-  var msg = inp.value.trim();
-  if (!msg) return;
-  inp.value = ''; btn.disabled = true;
+function sendAI(){
+  var inp=qs('ai-input');
+  var btn=qs('ai-send');
+  var msg=(inp.value||'').trim();
+  if(!msg) return;
+  inp.value='';
+  btn.disabled=true;
 
-  var msgs = CHAT_STATE[AI_MODEL];
-  msgs.push({ r:'u', t: msg });
-  msgs.push({ r:'b', t: '...' });
+  var msgs=CHAT[AI_MODEL];
+  msgs.push({r:'u',t:msg});
+  msgs.push({r:'b',t:'Analyzing\u2026'});
   renderChat();
 
-  // Build messages array (last 8 for context window)
-  var history = msgs.slice(-10).filter(function(m){ return m.t !== '...'; }).slice(0,-1);
-  var apiMsgs = history.map(function(m){ return { role: m.r==='u'?'user':'assistant', content: m.t }; });
+  /* Build conversation history — last 10 real messages, skip the placeholder */
+  var clean=msgs.filter(function(m){return m.t!=='Analyzing\u2026';}).slice(-11,-1);
+  var history=clean.map(function(m){
+    return {role:m.r==='u'?'user':'assistant', content:m.t};
+  });
 
-  callMetoAI(
-    AI_MODEL,
-    apiMsgs,
-    function(text) {
-      msgs[msgs.length-1] = { r:'b', t: text };
-      renderChat(); btn.disabled = false;
-    },
-    function(model) {
-      var fallbackMsg = 'Meto AI backend unreachable. Check that ' + API_BASE + '/' + model + ' is running with your API keys configured. ' +
-        'Portfolio summary: ' + ASSETS.length + ' assets, ' + ALERTS.filter(function(a){return a.sev==='CRITICAL';}).length + ' critical alerts.';
-      msgs[msgs.length-1] = { r:'b', t: fallbackMsg };
-      renderChat(); btn.disabled = false;
-    }
-  );
+  var cfg=MODEL_CFG[AI_MODEL];
+  var sys=buildCtx();
+  var payload=cfg.buildPayload(history, sys);
+
+  function onResult(text){
+    msgs[msgs.length-1]={r:'b',t:text};
+    renderChat(); btn.disabled=false;
+  }
+  function onFail(detail){
+    var fallback='Meto AI (' + cfg.name + ') — ' + (detail||'backend unreachable') + '.\n' +
+      (STATE.apiOnline
+        ? 'Check that ' + API_BASE + cfg.endpoint + ' is returning a valid response.'
+        : 'Backend is offline (SIM MODE). Start prexus-intelligence server to enable AI.');
+    msgs[msgs.length-1]={r:'b',t:fallback};
+    renderChat(); btn.disabled=false;
+  }
+
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST', API_BASE+cfg.endpoint, true);
+  Object.keys(authH()).forEach(function(k){ xhr.setRequestHeader(k, authH()[k]); });
+  xhr.timeout=28000;
+  xhr.onload=function(){
+    try{
+      var d=JSON.parse(xhr.responseText);
+      /* Check for backend-level error first */
+      if(d.error) { onFail(d.error); return; }
+      var text=cfg.parseResponse(d);
+      if(text) onResult(text);
+      else onFail('Empty response from ' + cfg.endpoint + ' (HTTP ' + xhr.status + ')');
+    }catch(e){ onFail('JSON parse error: '+e.message); }
+  };
+  xhr.onerror  = function(){ onFail('Network error — CORS or connection refused'); };
+  xhr.ontimeout= function(){ onFail('Timeout after 28s'); };
+  xhr.send(JSON.stringify(payload));
 }
 
-document.getElementById('ai-send').addEventListener('click', sendAI);
-document.getElementById('ai-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAI(); }
+qs('ai-send').addEventListener('click', sendAI);
+qs('ai-input').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault(); sendAI();}
 });
 
-/* ── Model tab switching ── */
-document.querySelectorAll('.model-tab').forEach(function(tab) {
-  tab.addEventListener('click', function() {
-    AI_MODEL = tab.dataset.model;
-    var meta = MODEL_META[AI_MODEL];
+/* ── Model tab switching — no CSS vars in JS ── */
+var MODEL_COLORS_BG   = {claude:'rgba(14,165,233,.18)',openai:'rgba(16,185,129,.15)',gemini:'rgba(245,158,11,.15)'};
+var MODEL_COLORS_TEXT = {claude:'#0EA5E9',openai:'#10B981',gemini:'#F59E0B'};
+var MODEL_COLORS_BDR  = {claude:'rgba(14,165,233,.35)',openai:'rgba(16,185,129,.3)',gemini:'rgba(245,158,11,.3)'};
 
-    // Update tab styles
-    document.querySelectorAll('.model-tab').forEach(function(t) {
-      var isActive = t.dataset.model === AI_MODEL;
-      t.style.background    = isActive ? 'var(--cmd)' : 'transparent';
-      t.style.color         = isActive ? 'var(--cobalt)' : 'var(--ghost)';
-      t.style.borderColor   = isActive ? 'var(--whi)' : 'transparent';
-      t.classList.toggle('active', isActive);
+document.querySelectorAll('.model-tab').forEach(function(tab){
+  tab.addEventListener('click',function(){
+    AI_MODEL=tab.dataset.model;
+    var cfg=MODEL_CFG[AI_MODEL];
+    document.querySelectorAll('.model-tab').forEach(function(t){
+      var isActive=t.dataset.model===AI_MODEL;
+      t.style.background  = isActive?MODEL_COLORS_BG[AI_MODEL]:'transparent';
+      t.style.color       = isActive?MODEL_COLORS_TEXT[AI_MODEL]:'#2A4A65';
+      t.style.borderColor = isActive?MODEL_COLORS_BDR[AI_MODEL]:'transparent';
     });
-
-    // Update badge
-    var badge = document.getElementById('ai-model-badge');
-    badge.textContent = meta.badge;
-    badge.className = 'tag ' + meta.badgeClass;
-    badge.style.fontSize = '7px';
-
-    // Update status strip
-    document.getElementById('model-status-text').textContent = meta.status;
-
-    // Re-render chat for this model
+    var badge=qs('ai-model-badge');
+    if(badge){
+      badge.textContent=cfg.badge;
+      badge.style.background=MODEL_COLORS_BG[AI_MODEL];
+      badge.style.color=MODEL_COLORS_TEXT[AI_MODEL];
+      badge.style.border='1px solid '+MODEL_COLORS_BDR[AI_MODEL];
+    }
+    var statusEl=qs('model-status-text');
+    if(statusEl) statusEl.textContent=cfg.name+' \xB7 via prexus backend'+cfg.endpoint;
+    if(CHAT[AI_MODEL].length===0) CHAT[AI_MODEL]=[{r:'b',t:getWelcome(AI_MODEL)}];
     renderChat();
   });
 });
 
-/* ── Re-render user context if localStorage changes ── */
-window.addEventListener('storage', function(e) {
-  if (e.key && (e.key.startsWith('prx_user') || e.key.startsWith('prexus_org'))) {
-    renderUserCtx();
-    // Refresh welcome message with new user name
-    ['claude','openai','gemini'].forEach(function(m) {
-      if (CHAT_STATE[m].length === 1 && CHAT_STATE[m][0].r === 'b') {
-        CHAT_STATE[m][0].t = getWelcome(m);
+/* ================================================================
+   DISASTER SIMULATION — slider-driven
+   ================================================================ */
+
+var SIM_SCENARIO = 'flood';
+
+/* Scenario type buttons */
+document.querySelectorAll('.sim-type-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    SIM_SCENARIO=btn.dataset.stype;
+    document.querySelectorAll('.sim-type-btn').forEach(function(b){
+      var active=b.dataset.stype===SIM_SCENARIO;
+      b.style.background   = active?'rgba(14,165,233,.08)':'transparent';
+      b.style.color        = active?'#0EA5E9':'#2A4A65';
+      b.style.borderColor  = active?'rgba(14,165,233,.3)':'rgba(14,165,233,.12)';
+    });
+    var badge=qs('sim-scenario-badge');
+    if(badge) badge.textContent=SIM_SCENARIO.toUpperCase();
+  });
+});
+
+/* Intensity slider live display */
+qs('sim-intensity').addEventListener('input',function(){
+  qs('sim-intensity-val').textContent=this.value+'%';
+});
+
+/* Duration slider live display */
+qs('sim-duration').addEventListener('input',function(){
+  var v=+this.value;
+  qs('sim-duration-val').textContent=v<7?v+' day'+(v>1?'s':''): v<30?Math.round(v/7)+' week'+(Math.round(v/7)>1?'s':''): Math.round(v/30)+' month'+(Math.round(v/30)>1?'s':'');
+});
+
+function updateSimTarget(){
+  var el=qs('sim-target');
+  if(!el) return;
+  if(STATE.simTarget){ el.textContent=STATE.simTarget.name; return; }
+  if(ASSETS.length>0){
+    var top=[].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;})[0];
+    el.textContent=top.name;
+    STATE.simTarget=top;
+  } else {
+    el.textContent='Add assets first';
+  }
+}
+
+qs('sim-btn').addEventListener('click',function(){
+  if(ASSETS.length===0){
+    qs('sim-result').innerHTML='<div style="padding:12px;background:rgba(14,165,233,.05);border:1px solid var(--wire);border-radius:3px;font-size:10px;color:var(--steel)">Add at least one asset to run simulation.</div>';
+    return;
+  }
+  var btn=this;
+  btn.disabled=true; btn.textContent='Computing\u2026';
+
+  var intensity  = +(qs('sim-intensity').value) / 100;
+  var duration   = +(qs('sim-duration').value);
+  var tgt        = STATE.simTarget || [].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;})[0];
+  var timeScalar = 1 + (STATE.time - 2023) * 0.012;
+
+  /* Client-side fallback values (used if backend not reachable) */
+  var fallbackCost = usd(tgt.val * tgt.cr * intensity * (0.8 + Math.random() * .4) * timeScalar);
+  var fallbackIns  = Math.round((120 + tgt.cr * 280) * intensity * (1 + (STATE.time - 2023) * 0.018));
+  var fallbackDmg  = intensity >= .8 ? 'Catastrophic' : intensity >= .6 ? 'Severe' : intensity >= .4 ? 'Moderate' : 'Low';
+  var fallbackProb = (intensity * 100).toFixed(0);
+
+  /*
+   * Payload for Python layer6/api_full.py → /risk/simulate
+   * Go risk.go proxies this via getDataEngineURL().
+   * Sending full asset context so Python engine doesn't need a DB lookup.
+   */
+  var payload = {
+    asset_id:       tgt.id,
+    asset_name:     tgt.name,
+    asset_type:     tgt.type,
+    lat:            tgt.lat,
+    lon:            tgt.lon,
+    latitude:       tgt.lat,
+    longitude:      tgt.lon,
+    value_usd_mm:   tgt.val,
+    composite_risk: tgt.cr,
+    physical_risk:  tgt.pr,
+    transition_risk:tgt.tr,
+    scenario:       SIM_SCENARIO,   /* flood | wildfire | heat | drought */
+    intensity:      intensity,      /* 0.0 – 1.0 */
+    duration_days:  duration,
+    rcp_year:       STATE.time,     /* 2023 – 2050 */
+    rcp_scenario:   'rcp85'
+  };
+
+  var simXhr = new XMLHttpRequest();
+  /*
+   * /risk/simulate is in the Python data-engine (layer6/api_full.py).
+   * Go gateway does NOT proxy this route — call DATA_ENGINE_URL directly.
+   * If your Python service runs on the same Render URL as Go, DATA_ENGINE_URL
+   * equals API_BASE. If it's a separate service, update DATA_ENGINE_URL above.
+   */
+  simXhr.open('POST', DATA_ENGINE_URL + '/risk/simulate', true);
+  Object.keys(authH()).forEach(function(k){ simXhr.setRequestHeader(k, authH()[k]); });
+  simXhr.timeout = 30000;
+
+  simXhr.onload = function(){
+    btn.disabled = false; btn.textContent = 'Run Simulation';
+    try {
+      var d = JSON.parse(simXhr.responseText);
+      if (d.error) { renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(client estimate — ' + d.error + ')'); return; }
+      /* Normalise field names from Python response */
+      var cost  = d.cost_impact     ? usd(d.cost_impact)
+                : d.cost_usd        ? usd(d.cost_usd / 1e6)
+                : d.estimated_loss  ? usd(d.estimated_loss / 1e6)
+                : fallbackCost;
+      var dmg   = d.damage_label    || d.damage_level    || d.severity    || fallbackDmg;
+      var ins   = d.insurance_increase_pct || d.insurance_pct || d.premium_increase || fallbackIns;
+      var prob  = d.probability_pct || d.event_probability || d.flood_probability || fallbackProb;
+      renderSimResult(cost, dmg, ins, prob, null);
+    } catch(e) {
+      renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(client estimate)');
+    }
+  };
+  simXhr.onerror  = function(){ btn.disabled=false; btn.textContent='Run Simulation'; renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(offline \u2014 client estimate)'); };
+  simXhr.ontimeout= function(){ btn.disabled=false; btn.textContent='Run Simulation'; renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(timeout \u2014 client estimate)'); };
+  simXhr.send(JSON.stringify(payload));
+});
+
+function renderSimResult(cost, dmg, ins, prob, sourceNote){
+  var note = sourceNote ? '<div style="margin-top:6px;font-size:8px;color:var(--ghost);letter-spacing:.06em">'+sourceNote+'</div>' : '';
+  qs('sim-result').innerHTML=
+    '<div class="sim-row"><div class="sim-ic" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2)">$</div>'+
+    '<div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Estimated Cost Impact</div>'+
+    '<div style="font-size:11px;color:var(--ice);font-weight:500">'+cost+'</div></div></div>'+
+    '<div class="sim-row"><div class="sim-ic" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2)">!</div>'+
+    '<div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Infrastructure Damage</div>'+
+    '<div style="font-size:11px;color:#F59E0B;font-weight:500">'+dmg+'</div></div></div>'+
+    '<div class="sim-row"><div class="sim-ic" style="background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2)">+</div>'+
+    '<div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Insurance Increase</div>'+
+    '<div style="font-size:11px;color:#0EA5E9;font-weight:500">+'+ins+'%</div></div></div>'+
+    '<div class="sim-row"><div class="sim-ic" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2)">%</div>'+
+    '<div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Event Probability by '+STATE.time+'</div>'+
+    '<div style="font-size:11px;color:#EF4444;font-weight:500">'+prob+'%</div></div></div>'+
+    '<div style="margin-top:8px;padding:8px 10px;background:rgba(14,165,233,.04);border:1px solid var(--wire);border-radius:3px">'+
+    '<div style="font-size:8px;color:var(--cobalt);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">Recommended Actions (RCP 8.5 \xB7 '+STATE.time+')</div>'+
+    '<div style="font-size:10.5px;color:var(--steel);line-height:1.7">'+
+    'Elevate critical infrastructure above flood line<br>Relocate vulnerable operations upland<br>Increase insurance coverage immediately<br>Deploy early-warning sensor array</div>'+
+    note+'</div>';
+}
+
+/* ================================================================
+   ASSET QUICK LIST
+   ================================================================ */
+function renderQuickList(){
+  var el=qs('quick-title');
+  if(el) el.textContent='Your Assets \xB7 '+ASSETS.length;
+  var ql=qs('quick-list');
+  if(!ql) return;
+  if(ASSETS.length===0){
+    ql.innerHTML='<div style="padding:14px 0;text-align:center;color:var(--ghost);font-size:10px;line-height:1.7">No assets registered yet.<br>'+
+      '<span style="color:var(--cobalt);cursor:pointer" onclick="qs(\'add-modal\').classList.remove(\'hidden\')">+ Add your first asset</span></div>';
+    return;
+  }
+  ql.innerHTML=[].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;}).slice(0,6).map(function(a){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(14,165,233,.07);cursor:pointer" '+
+      'onclick="if(STATE.globe)STATE.globe.flyToAsset(ASSETS.find(function(x){return x.id===\''+a.id+'\'}))">' +
+      '<div style="width:4px;height:28px;border-radius:2px;background:'+rc(a.cr)+';flex-shrink:0"></div>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--ice);font-weight:500;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+a.name+'</div>'+
+      '<div style="font-size:8px;color:var(--ghost);letter-spacing:.06em;text-transform:uppercase">'+a.id+' \xB7 '+a.country+'</div></div>'+
+      '<div style="text-align:right;flex-shrink:0"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:'+rc(a.cr)+'">'+pct(a.cr)+'</div>'+
+      '<span style="font-size:8px;font-weight:600;letter-spacing:.1em;padding:1px 5px;border-radius:2px;background:'+rc(a.cr)+'22;color:'+rc(a.cr)+';border:1px solid '+rc(a.cr)+'44">'+rl(a.cr)+'</span></div>'+
+      '</div>';
+  }).join('');
+}
+
+/* ================================================================
+   ADD ASSET MODAL — saves to backend
+   ================================================================ */
+qs('modal-close').addEventListener('click',function(){qs('add-modal').classList.add('hidden'); resetModal();});
+qs('modal-cancel').addEventListener('click',function(){qs('add-modal').classList.add('hidden'); resetModal();});
+qs('add-modal').addEventListener('click',function(e){if(e.target===this){this.classList.add('hidden'); resetModal();}});;
+
+qs('modal-submit').addEventListener('click',function(){
+  var n    = (qs('f-name').value||'').trim();
+  var co   = (qs('f-country').value||'').trim();
+  var la   = qs('f-lat').value;
+  var lo   = qs('f-lon').value;
+  var v    = qs('f-val').value;
+  var tp   = qs('f-type').value;
+
+  if(!n||!co||!la||!lo||!v||!tp){
+    qs('modal-save-status').textContent='Fill required fields';
+    qs('modal-save-status').style.color='#EF4444';
+    return;
+  }
+
+  var btn=this; btn.disabled=true; btn.textContent='Saving\u2026';
+  /* Clear any previous error */
+  qs('modal-save-status').textContent='';
+  qs('modal-save-status').style.color='';
+
+  /* Collect risk flags */
+  var flags=[];
+  document.querySelectorAll('#add-modal input[type=checkbox]:checked').forEach(function(cb){flags.push(cb.value);});
+
+  /* No id field — backend generates and returns it */
+  var newAsset={
+    name:          n,
+    type:          tp,
+    industry:      (qs('f-industry').value||'').trim(),
+    description:   (qs('f-desc').value||'').trim(),
+    country:       co,
+    cc:            (qs('f-cc').value||co.slice(0,3)).toUpperCase(),
+    city:          (qs('f-city').value||'').trim(),
+    address:       (qs('f-address').value||'').trim(),
+    lat:           +la,
+    lon:           +lo,
+    latitude:      +la,
+    longitude:     +lo,
+    val:           +v,
+    value_mm:      +v,
+    revenue_mm:    +(qs('f-rev').value||0),
+    insurance_mm:  +(qs('f-ins').value||0),
+    replacement_mm:+(qs('f-replace').value||0),
+    tier:          +(qs('f-tier').value||3),
+    ownership:     qs('f-own').value,
+    risk_flags:    flags,
+    notes:         (qs('f-notes').value||'').trim(),
+    avatar:        AVATAR_BASE64 || null,   /* base64 data URL, null if not set */
+  };
+
+  fetch(API_BASE+'/assets',{method:'POST',headers:authH(),body:JSON.stringify(newAsset)})
+    .then(function(r){
+      if(r.status===401){ handleExpired(); return; }
+      if(!r.ok) return r.json().then(function(e){ throw new Error(e.message||e.error||'HTTP '+r.status); }).catch(function(){ throw new Error('HTTP '+r.status); });
+      return r.json();
+    })
+    .then(function(saved){
+      if(!saved) return; /* redirecting due to 401 */
+      /* Backend returns saved asset with id + computed risk scores */
+      var a={
+        id:      saved.id||saved.asset_id||'A-'+Date.now().toString(36).toUpperCase(),
+        name:    newAsset.name,
+        type:    newAsset.type,
+        country: newAsset.country,
+        cc:      newAsset.cc,
+        city:    newAsset.city,
+        lat:     newAsset.lat,
+        lon:     newAsset.lon,
+        val:     newAsset.val,
+        cr:      parseFloat((saved.composite_risk||saved.cr||saved.risk_score||Math.random()*.55+.15).toFixed(2)),
+        pr:      parseFloat((saved.physical_risk  ||saved.pr||0).toFixed(2)),
+        tr:      parseFloat((saved.transition_risk||saved.tr||0).toFixed(2)),
+        al:      0,
+      };
+      ASSETS.push(a);
+      if(STATE.globe) STATE.globe.addAsset(a);
+      STATE.simTarget=a;
+      updateSimTarget();
+      renderQuickList();
+      updateBadges();
+      if(qs('ctx-assets')) qs('ctx-assets').textContent=ASSETS.length;
+      /* Refresh Meto AI welcome now that portfolio has assets */
+      Object.keys(MODEL_CFG).forEach(function(m){
+        if(CHAT[m].length===1) CHAT[m][0].t=getWelcome(m);
+      });
+      renderChat();
+      /* Hide the empty-state nudge — user now has an asset */
+      hideWelcomeOverlay();
+      qs('add-modal').classList.add('hidden');
+      resetModal();
+      /* Go to globe and fly to new pin */
+      navigate('globe');
+      setTimeout(function(){if(STATE.globe)STATE.globe.flyToAsset(a,3000000);},400);
+    })
+    .catch(function(err){
+      /* Keep modal open — show inline error above the submit button */
+      var statusEl = qs('modal-save-status');
+      statusEl.textContent = 'Save failed — ' + (err.message||'check your connection');
+      statusEl.style.color = '#EF4444';
+    })
+    .finally(function(){btn.disabled=false; btn.textContent='Save & Pin on Globe';});
+});
+
+/* ================================================================
+   PANEL BUILDERS
+   ================================================================ */
+function renderPanel(v,el){
+  el.innerHTML='';
+  if(v==='dashboard')  buildDash(el);
+  else if(v==='alerts')     buildAlerts(el);
+  else if(v==='portfolio')  buildPortfolio(el);
+  else if(v==='signals')    buildSignals(el);
+  else if(v==='pipeline')   buildPipeline(el);
+  else if(v==='sources')    buildSources(el);
+}
+
+function emptyState(msg,cta,ctaFn){
+  return '<div style="padding:40px 20px;text-align:center"><div style="font-size:11px;color:var(--ghost);margin-bottom:12px">'+msg+'</div>'+
+    (cta?'<button onclick="'+ctaFn+'" style="padding:8px 16px;background:var(--cobalt);border:none;border-radius:3px;color:white;font-family:\'Martian Mono\',monospace;font-size:10px;cursor:pointer;letter-spacing:.1em;text-transform:uppercase">'+cta+'</button>':'')+'</div>';
+}
+
+function buildDash(el){
+  if(ASSETS.length===0){
+    el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Intelligence Overview</div></div>'+emptyState('No assets registered. Add your assets to start receiving climate risk intelligence.','+ Add First Asset',"qs('add-modal').classList.remove('hidden')")+'</div>';
+    return;
+  }
+  var tv=ASSETS.reduce(function(s,a){return s+a.val;},0);
+  var cr=tv>0?ASSETS.reduce(function(s,a){return s+a.cr*a.val;},0)/tv:0;
+  var ncrit=ALERTS.filter(function(a){return(a.sev||a.severity)==='CRITICAL';}).length;
+  el.innerHTML='<div class="g4" style="margin-bottom:14px">'+
+    '<div class="kpi c"><div class="kl">Portfolio Exposure</div><div class="kv">'+usd(tv)+'</div><div class="ks">'+ASSETS.length+' assets on globe</div></div>'+
+    '<div class="kpi '+(cr>.65?'a':'c')+'"><div class="kl">Composite Risk</div><div class="kv">'+pct(cr)+'</div><div class="ks">IPCC AR6 value-weighted</div></div>'+
+    '<div class="kpi '+(ncrit>0?'r':'c')+'"><div class="kl">Active Alerts</div><div class="kv">'+ALERTS.length+'</div><div class="ks">'+(ncrit>0?ncrit+' critical':'no critical alerts')+'</div></div>'+
+    '<div class="kpi a"><div class="kl">RCP 8.5 Year</div><div class="kv">'+STATE.time+'</div><div class="ks">+'+(((STATE.time-2023)/27)*3.2).toFixed(1)+'\xB0C projected</div></div>'+
+    '</div>'+
+    (ALERTS.length>0?
+      '<div class="panel"><div class="ph"><div class="pt">Latest Alerts</div><div class="pright"><span class="tag '+(ncrit>0?'red':'cobalt')+'">'+ALERTS.length+' ACTIVE</span></div></div>'+
+      ALERTS.slice(0,5).map(function(al){
+        var sev=al.sev||al.severity||'ELEVATED';
+        var score=+(al.score||al.risk_score||0);
+        return '<div class="dec '+rcl(score)+'" style="border-radius:0;margin-bottom:0;border-top:none;border-right:none;border-bottom:1px solid var(--wire)">'+
+          '<div class="dec-hd"><span class="dec-b">'+sev+'</span><span class="dec-a">'+(al.name||al.asset_name||al.asset||'—')+'</span><div class="dec-sc">'+pct(score)+'</div></div>'+
+          '<div class="dec-msg">'+(al.msg||al.message||al.description||'')+'</div></div>';
+      }).join('')+'</div>'
+    :'<div class="panel"><div class="ph"><div class="pt">Alerts</div></div>'+emptyState('No active alerts.','')+'</div>');
+}
+
+function buildAlerts(el){
+  if(ALERTS.length===0){
+    el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Alert Command Center</div></div>'+emptyState('No active alerts. Alerts appear automatically when risk thresholds are breached for your assets.')+'</div>';
+    return;
+  }
+  el.innerHTML=ALERTS.map(function(al){
+    var sev=al.sev||al.severity||'ELEVATED';
+    var score=+(al.score||al.risk_score||0);
+    var assetId=al.asset||al.asset_id||'';
+    return '<div class="dec '+rcl(score)+'">'+
+      '<div class="dec-hd"><span class="dec-b">'+sev+'</span><span class="dec-a">'+(al.name||al.asset_name||assetId)+'</span>'+
+      '<span style="margin-left:auto;margin-right:8px;font-size:8.5px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em">'+(al.type||al.risk_type||'PHYSICAL')+' RISK</span>'+
+      '<div class="dec-sc">'+pct(score)+'</div></div>'+
+      '<div class="dec-msg">'+(al.msg||al.message||al.description||'—')+'</div>'+
+      '<div style="margin-bottom:8px"><div class="rb"><div class="rf" style="width:'+Math.round(score*100)+'%;background:'+(sev==='CRITICAL'?'var(--red)':sev==='HIGH'?'var(--amber)':'var(--cobalt)')+'"></div></div></div>'+
+      '<div class="dec-meta"><span>'+(al.ts||al.timestamp||'—')+'</span><span>'+(al.src||al.source||'—')+'</span>'+
+      '<div style="margin-left:auto;display:flex;gap:5px">'+
+      (assetId?'<span class="tag cobalt" style="cursor:pointer" onclick="navigate(\'globe\');setTimeout(function(){var a=ASSETS.find(function(x){return x.id===\''+assetId+'\';});if(a&&STATE.globe)STATE.globe.flyToAsset(a);},300)">VIEW ON GLOBE</span>':'')+
+      '</div></div></div>';
+  }).join('');
+}
+
+function buildPortfolio(el){
+  el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Asset Risk Registry \xB7 '+ASSETS.length+' Assets</div><div class="pright"><button onclick="qs(\'add-modal\').classList.remove(\'hidden\')" style="padding:3px 10px;background:var(--cobalt);border:none;border-radius:3px;color:white;cursor:pointer;font-family:\'Martian Mono\',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase">+ ADD ASSET</button></div></div>'+
+    (ASSETS.length===0?emptyState('No assets registered yet. Add your assets to build your climate risk portfolio.','+ Add First Asset',"qs('add-modal').classList.remove('hidden')"):
+    '<div style="overflow-x:auto"><table class="dt"><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Country</th><th>Value</th><th>Composite</th><th>Physical</th><th>Transition</th><th>Globe</th></tr></thead><tbody>'+
+    [].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;}).map(function(a){
+      return '<tr style="cursor:pointer">'+
+        '<td style="font-family:\'Martian Mono\',monospace;font-size:10px;color:var(--cobalt)">'+a.id+'</td>'+
+        '<td style="font-size:11px;color:var(--ice)">'+a.name+'</td>'+
+        '<td style="font-size:9px;color:var(--steel);text-transform:uppercase">'+a.type+'</td>'+
+        '<td style="font-size:10px;color:var(--steel)">'+a.cc+'</td>'+
+        '<td style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:var(--ice)">'+usd(a.val)+'</td>'+
+        '<td><span style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:'+rc(a.cr)+'">'+pct(a.cr)+'</span></td>'+
+        '<td style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:#0EA5E9">'+pct(a.pr)+'</td>'+
+        '<td style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:#F59E0B">'+pct(a.tr)+'</td>'+
+        '<td><span class="tag cobalt" style="cursor:pointer" onclick="navigate(\'globe\');setTimeout(function(){if(STATE.globe)STATE.globe.flyToAsset(ASSETS.find(function(x){return x.id===\''+a.id+'\'}));},300)">FLY TO</span></td>'+
+        '</tr>';
+    }).join('')+'</tbody></table></div>')+'</div>';
+}
+
+function buildSignals(el){
+  el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Climate Signal Telemetry</div></div>'+
+    (ASSETS.length===0?emptyState('Add assets to start receiving live climate signal telemetry.'):
+    '<div style="padding:14px;font-size:10px;color:var(--steel)">Toggle risk layers in the sidebar to view live climate overlays on the 3D globe. Signal data updates every 1-6h from ERA5, FIRMS, and ECMWF sources.</div>'+
+    '<div style="padding:0 14px 14px;text-align:center"><button onclick="navigate(\'globe\')" style="padding:8px 16px;background:var(--cobalt);border:none;border-radius:3px;color:white;font-family:\'Martian Mono\',monospace;font-size:10px;cursor:pointer;letter-spacing:.1em;text-transform:uppercase">Open 3D Globe</button></div>')+'</div>';
+}
+
+function buildPipeline(el){
+  var rows=[['0','Satellite Sources','NASA FIRMS, ECMWF ERA5, Copernicus, Carbon Monitor, Planet Labs.',['NASA','ESA','NOAA']],
+   ['1','Telemetry Acquisition','Async workers. Redis Streams producer. APScheduler cadence.',['asyncio','Redis']],
+   ['2','Raw Telemetry Lake','Immutable store. SQLite manifest. Parquet by source + bbox.',['SQLite','Parquet']],
+   ['3','Geospatial ETL','H3 hex indexing. ERA5 tiles. FIRMS density. NDVI.',['H3','GDAL']],
+   ['4','Feature Store','Per-asset intelligence vectors. Physical + transition. 6h cache.',['SQLite WAL','Fusion']],
+   ['5','Risk Computation','PhysicalScorer + TransitionScorer. Rust Monte Carlo 10k draws.',['Rust','PyO3','VaR']],
+   ['6','API Delivery','FastAPI + Go Gateway. Redis Streams. Provenance metadata.',['FastAPI','Go','JWT']]];
+  el.innerHTML='<div class="panel"><div class="ph"><div class="pt">7-Layer Intelligence Pipeline</div><div class="pright"><span class="tag green">ALL NOMINAL</span></div></div>'+
+    rows.map(function(row,i){
+      return '<div style="display:flex;align-items:flex-start;padding:12px 20px;border-bottom:'+(i<6?'1px solid var(--wire)':'none')+'">'+
+        '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:28px;color:var(--phantom);width:44px;flex-shrink:0;line-height:1">'+row[0]+'</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:center;margin-right:14px;padding-top:6px">'+
+        '<div style="width:8px;height:8px;border-radius:50%;background:#0EA5E9;box-shadow:0 0 6px #0EA5E9"></div>'+
+        (i<6?'<div style="width:1px;height:40px;background:var(--wire);margin:4px 0"></div>':'')+'</div>'+
+        '<div style="flex:1"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;letter-spacing:.08em;color:white;text-transform:uppercase;margin-bottom:2px">'+row[1]+'</div>'+
+        '<div style="font-size:10px;color:var(--steel);line-height:1.5;margin-bottom:6px">'+row[2]+'</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:4px">'+row[3].map(function(p){return '<span style="font-size:8px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;border:1px solid var(--wire);color:var(--ghost);text-transform:uppercase">'+p+'</span>';}).join('')+'</div>'+
+        '</div><div style="margin-left:14px"><span class="tag green">NOMINAL</span></div></div>';
+    }).join('')+'</div>';
+}
+
+function buildSources(el){
+  var sources=[
+    {n:'Open-Meteo ECMWF',t:'Weather', lat:18, st:'nominal',key:false},
+    {n:'ERA5 Reanalysis',  t:'Climate',lat:45, st:'nominal',key:false},
+    {n:'NASA FIRMS VIIRS', t:'Fire',   lat:62, st:'nominal',key:true},
+    {n:'Carbon Monitor',   t:'Emissions',lat:28,st:'nominal',key:false},
+    {n:'Sentinel Hub ESA', t:'Satellite',lat:180,st:'degraded',key:true},
+    {n:'Planet Labs',      t:'Satellite',lat:null,st:'offline',key:true},
+    {n:'CMIP6 IPCC',       t:'Scenarios',lat:0,st:'nominal',key:false},
+    {n:'Redis Streams',    t:'Pipeline',lat:1,st:'nominal',key:false},
+    {n:'Rust Monte Carlo', t:'Compute', lat:12,st:'nominal',key:false},
+  ];
+  el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Telemetry Source Registry</div></div><div style="overflow-x:auto"><table class="dt"><thead><tr><th>Status</th><th>Source</th><th>Type</th><th>Latency</th><th>Key</th></tr></thead><tbody>'+
+    sources.map(function(s){
+      var stc=s.st==='nominal'?'var(--green)':s.st==='degraded'?'var(--amber)':'var(--red)';
+      return '<tr><td><div style="display:flex;align-items:center;gap:6px"><div class="sd '+s.st+'"></div><span style="font-size:9px;color:'+stc+';text-transform:uppercase;letter-spacing:.06em">'+s.st+'</span></div></td>'+
+        '<td style="font-size:11px;color:var(--ice)">'+s.n+'</td>'+
+        '<td style="font-size:9px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em">'+s.t+'</td>'+
+        '<td style="font-family:\'Bebas Neue\',sans-serif;font-size:15px;color:#0EA5E9">'+(s.lat!=null?s.lat+'ms':'\u2014')+'</td>'+
+        '<td><span class="tag '+(s.key?'amber':'green')+'">'+(s.key?'API KEY':'FREE')+'</span></td></tr>';
+    }).join('')+'</tbody></table></div></div>';
+}
+
+/* ================================================================
+   BOOT — auth guard → globe starts → assets load in background
+   Globe spins immediately with empty Earth.
+   Assets pinned onto it once they arrive from backend.
+   ================================================================ */
+window.addEventListener('load', function(){
+
+  /* Auth guard — must have token from login, else back to landing */
+  var token = localStorage.getItem('prx_token');
+  if (!token) {
+    window.location.replace('landing.html');
+    return;
+  }
+
+  /* 1. Show globe view immediately — don't wait for assets */
+  navigate('globe');
+
+  /* 2. Load session info into UI (org name, avatar initials, etc.) */
+  loadSession();
+
+  /* 3. Start API health check in background */
+  checkAPI();
+
+  /* 4. Load assets + alerts from backend.
+        If backend is offline this fails gracefully — globe already running. */
+  loadAssets(function(){
+    /* Pin loaded assets onto the already-running globe */
+    if(STATE.globe && ASSETS.length > 0){
+      ASSETS.forEach(function(a){ STATE.globe.addAsset(a); });
+    }
+    loadAlerts(function(){
+      updateBadges();
+      renderQuickList();
+      initChat();
+      /* Show welcome overlay only if 0 assets and not dismissed this session */
+      if(ASSETS.length === 0 && !sessionStorage.getItem('welcome_dismissed')){
+        showWelcomeOverlay();
       }
     });
-    renderChat();
-  }
+  });
 });
-document.getElementById('sim-btn').addEventListener('click',function(){var btn=this;btn.disabled=true;btn.textContent='Computing...';var tgt=ASSETS.sort(function(a,b){return b.cr-a.cr;})[0];setTimeout(function(){document.getElementById('sim-result').innerHTML='<div class="sim-row"><div style="width:28px;height:28px;border-radius:6px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">$</div><div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Cost Impact (RCP yr '+STATE.time+')</div><div style="font-size:11px;color:var(--ice);font-weight:500">'+usd(tgt.val*tgt.cr*(1.8+Math.random()*.8)*(1+(STATE.time-2023)*.012))+'</div></div></div><div class="sim-row"><div style="width:28px;height:28px;border-radius:6px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">!</div><div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Infrastructure Damage</div><div style="font-size:11px;color:var(--amber);font-weight:500">'+(tgt.cr>.6?'Severe':'Moderate')+'</div></div></div><div class="sim-row"><div style="width:28px;height:28px;border-radius:6px;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">+</div><div><div style="font-size:8px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">Insurance Premium Increase</div><div style="font-size:11px;color:var(--cobalt);font-weight:500">+'+Math.round((150+tgt.cr*250)*(1+(STATE.time-2023)*.018))+'%</div></div></div><div style="margin-top:8px;padding:8px 10px;background:rgba(14,165,233,.04);border:1px solid var(--wire);border-radius:3px"><div style="font-size:8px;color:var(--cobalt);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">RCP 8.5 Recommended Actions</div><div style="font-size:10.5px;color:var(--steel);line-height:1.7">Elevate critical infrastructure above flood line<br>Relocate vulnerable operations upland<br>Increase insurance coverage<br>Deploy early warning sensor array</div></div>';btn.disabled=false;btn.textContent='Simulate Disaster';},1600);});
-function renderQuickList(){document.getElementById('quick-title').textContent='Top Risk Assets \xB7 '+ASSETS.length;document.getElementById('quick-list').innerHTML=[].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;}).slice(0,5).map(function(a){return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(14,165,233,.07);cursor:pointer" onclick="if(STATE.globe)STATE.globe.flyToAsset(ASSETS.find(function(x){return x.id===\''+a.id+'\'}))"><div style="width:4px;height:28px;border-radius:2px;background:'+rc(a.cr)+';flex-shrink:0"></div><div style="flex:1"><div style="font-size:10px;color:var(--ice);font-weight:500;margin-bottom:1px">'+a.name+'</div><div style="font-size:8px;color:var(--ghost);letter-spacing:.06em;text-transform:uppercase">'+a.id+' \xB7 '+a.country+'</div></div><div style="text-align:right"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:'+rc(a.cr)+'">'+pct(a.cr)+'</div><span style="font-size:8px;font-weight:600;letter-spacing:.1em;padding:1px 5px;border-radius:2px;background:'+rc(a.cr)+'22;color:'+rc(a.cr)+';border:1px solid '+rc(a.cr)+'44">'+rl(a.cr)+'</span></div></div>';}).join('');}
-renderQuickList();renderChat();
-function buildDash(el){var tv=ASSETS.reduce(function(s,a){return s+a.val;},0);var cr=tv>0?ASSETS.reduce(function(s,a){return s+a.cr*a.val;},0)/tv:0;el.innerHTML='<div class="g4" style="margin-bottom:14px"><div class="kpi c"><div class="kl">Portfolio Exposure</div><div class="kv">'+usd(tv)+'</div><div class="ks">'+ASSETS.length+' on 3D globe</div></div><div class="kpi '+(cr>.65?'a':'c')+'"><div class="kl">Composite Risk</div><div class="kv">'+pct(cr)+'</div><div class="ks">IPCC AR6 value-weighted</div></div><div class="kpi '+(CRIT>0?'r':'c')+'"><div class="kl">Active Alerts</div><div class="kv">'+ALERTS.length+'</div><div class="ks">'+CRIT+' critical decisions</div></div><div class="kpi a"><div class="kl">RCP 8.5 Year</div><div class="kv">'+STATE.time+'</div><div class="ks">+'+(((STATE.time-2023)/27)*3.2).toFixed(1)+'\xB0C projected</div></div></div><div class="panel"><div class="ph"><div class="pt">Priority Alerts</div><div class="pright"><span class="tag red">'+CRIT+' CRITICAL</span></div></div>'+ALERTS.map(function(al){return '<div class="dec '+rcl(al.score)+'" style="border-radius:0;margin-bottom:0;border-top:none;border-right:none;border-bottom:1px solid var(--wire)"><div class="dec-hd"><span class="dec-b">'+al.sev+'</span><span class="dec-a">'+al.name+'</span><div class="dec-sc">'+pct(al.score)+'</div></div><div class="dec-msg">'+al.msg+'</div></div>';}).join('')+'</div>';}
-function buildAlerts(el){el.innerHTML=ALERTS.map(function(al){return '<div class="dec '+rcl(al.score)+'"><div class="dec-hd"><span class="dec-b">'+al.sev+'</span><span class="dec-a">'+al.name+'</span><span style="margin-left:auto;margin-right:8px;font-size:8.5px;color:var(--ghost);text-transform:uppercase;letter-spacing:.08em">'+al.type+' RISK</span><div class="dec-sc">'+pct(al.score)+'</div></div><div class="dec-msg">'+al.msg+'</div><div style="margin-bottom:8px"><div class="rb"><div class="rf" style="width:'+Math.round(al.score*100)+'%;background:'+(al.sev==='CRITICAL'?'var(--red)':al.sev==='HIGH'?'var(--amber)':'var(--cobalt)')+'"></div></div></div><div class="dec-meta"><span>'+al.asset+'</span><span>'+al.ts+'</span><span>'+al.src+'</span><div style="margin-left:auto;display:flex;gap:5px"><span class="tag cobalt" style="cursor:pointer" onclick="navigate(\'globe\');setTimeout(function(){if(STATE.globe)STATE.globe.flyToAsset(ASSETS.find(function(a){return a.id===\''+al.asset+'\';}));},300)">VIEW ON GLOBE</span></div></div></div>';}).join('');}
-function buildPortfolio(el){el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Asset Risk Registry \xB7 '+ASSETS.length+' Assets</div><div class="pright"><button onclick="document.getElementById(\'add-modal\').classList.remove(\'hidden\')" style="padding:3px 10px;background:var(--cobalt);border:none;border-radius:3px;color:white;cursor:pointer;font-family:\'Martian Mono\',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase">+ ADD</button></div></div><div style="overflow-x:auto"><table class="dt"><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Country</th><th>Value</th><th>Composite</th><th>Physical</th><th>Transition</th></tr></thead><tbody>'+[].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;}).map(function(a){return '<tr style="cursor:pointer" onclick="navigate(\'globe\');setTimeout(function(){if(STATE.globe)STATE.globe.flyToAsset(ASSETS.find(function(x){return x.id===\''+a.id+'\'}));},300)"><td style="font-family:\'Martian Mono\',monospace;font-size:10px;color:var(--cobalt)">'+a.id+'</td><td style="font-size:11px;color:var(--ice)">'+a.name+'</td><td style="font-size:9px;color:var(--steel);text-transform:uppercase">'+a.type+'</td><td style="font-size:10px;color:var(--steel)">'+a.cc+'</td><td style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:var(--ice)">'+usd(a.val)+'</td><td><span style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:'+rc(a.cr)+'">'+pct(a.cr)+'</span></td><td style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:var(--cobalt)">'+pct(a.pr)+'</td><td style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:var(--amber)">'+pct(a.tr)+'</td></tr>';}).join('')+'</tbody></table></div></div>';}
-function buildSignals(el){el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Live Climate Signal Telemetry</div></div><div style="padding:20px;text-align:center;color:var(--steel);font-size:11px;font-family:\'Source Serif 4\',serif;font-style:italic">Toggle risk layers on the sidebar to view climate signal overlays live on the 3D globe.</div><div style="padding:0 20px 20px;text-align:center"><button onclick="navigate(\'globe\')" style="padding:10px 20px;background:var(--cobalt);border:none;border-radius:3px;color:white;font-family:\'Martian Mono\',monospace;font-size:11px;cursor:pointer;letter-spacing:.1em;text-transform:uppercase">Open 3D Globe</button></div></div>';}
-function buildPipeline(el){el.innerHTML='<div class="panel"><div class="ph"><div class="pt">7-Layer Intelligence Pipeline</div><div class="pright"><span class="tag green">ALL NOMINAL</span></div></div>'+[['0','Satellite Sources','19 sources: FIRMS, ERA5, Copernicus, Carbon Monitor, Planet Labs.',['NASA','ESA','JAXA','NOAA']],['1','Telemetry Acquisition','Async workers. Redis Streams producer. APScheduler cadence.',['asyncio','httpx','Redis']],['2','Raw Telemetry Lake','Immutable store. SQLite manifest. Parquet by source + bbox.',['SQLite','Parquet']],['3','Geospatial ETL','H3 hex indexing. ERA5 tiles. FIRMS density. NDVI.',['H3','xarray','GDAL']],['4','Feature Store','Per-asset intelligence. Physical + transition + satellite.',['SQLite WAL','Fusion']],['5','Risk Computation','PhysicalScorer + TransitionScorer. Rust Monte Carlo 10k.',['Rust','PyO3','VaR']],['6','API Delivery','FastAPI + Go Gateway. Redis Streams. Provenance.',['FastAPI','Go','JWT']]].map(function(row,i){return '<div style="display:flex;align-items:flex-start;padding:12px 20px;border-bottom:'+(i<6?'1px solid var(--wire)':'none')+'"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:28px;color:var(--phantom);width:44px;flex-shrink:0;line-height:1">'+row[0]+'</div><div style="display:flex;flex-direction:column;align-items:center;margin-right:14px;padding-top:6px"><div style="width:8px;height:8px;border-radius:50%;background:var(--cobalt);box-shadow:0 0 6px var(--cobalt)"></div>'+(i<6?'<div style="width:1px;height:40px;background:var(--wire);margin:4px 0"></div>':'')+'</div><div style="flex:1"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;letter-spacing:.08em;color:white;text-transform:uppercase;margin-bottom:2px">'+row[1]+'</div><div style="font-size:10px;color:var(--steel);line-height:1.5;margin-bottom:6px">'+row[2]+'</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+row[3].map(function(p){return '<span style="font-size:8px;letter-spacing:.08em;padding:2px 6px;border-radius:2px;border:1px solid var(--wire);color:var(--ghost);text-transform:uppercase">'+p+'</span>';}).join('')+'</div></div><div style="margin-left:14px"><span class="tag green">NOMINAL</span></div></div>';}).join('')+'</div>';}
-function buildSources(el){el.innerHTML='<div class="panel"><div class="ph"><div class="pt">Telemetry Source Registry</div></div><div style="overflow-x:auto"><table class="dt"><thead><tr><th>Status</th><th>Source</th><th>Type</th><th>Latency</th><th>Key</th></tr></thead><tbody>'+[{n:'Open-Meteo ECMWF',t:'Weather',lat:18,st:'nominal',key:false},{n:'ERA5 Reanalysis',t:'Climate',lat:45,st:'nominal',key:false},{n:'NASA FIRMS VIIRS',t:'Fire',lat:62,st:'nominal',key:true},{n:'Carbon Monitor',t:'Emissions',lat:28,st:'nominal',key:false},{n:'Sentinel Hub ESA',t:'Satellite',lat:180,st:'degraded',key:true},{n:'Planet Labs',t:'Satellite',lat:null,st:'offline',key:true},{n:'CMIP6 IPCC',t:'Scenarios',lat:0,st:'nominal',key:false},{n:'Redis Streams',t:'Pipeline',lat:1,st:'nominal',key:false},{n:'Rust Monte Carlo',t:'Compute',lat:12,st:'nominal',key:false}].map(function(s){var stc=s.st==='nominal'?'var(--green)':s.st==='degraded'?'var(--amber)':'var(--red)';return '<tr><td><div style="display:flex;align-items:center;gap:6px"><div class="sd '+s.st+'"></div><span style="font-size:9px;color:'+stc+';text-transform:uppercase;letter-spacing:.06em">'+s.st+'</span></div></td><td style="font-size:11px;color:var(--ice)">'+s.n+'</td><td style="font-size:9px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em">'+s.t+'</td><td style="font-family:\'Bebas Neue\',sans-serif;font-size:15px;color:var(--cobalt)">'+(s.lat!=null?s.lat+'ms':'\u2014')+'</td><td><span class="tag '+(s.key?'amber':'green')+'">'+(s.key?'API KEY':'FREE')+'</span></td></tr>';}).join('')+'</tbody></table></div></div>';}
-window.addEventListener('load',function(){navigate('globe');});
+
+/* ================================================================
+   WELCOME OVERLAY — fires when portfolio is empty
+   ================================================================ */
+function showWelcomeOverlay(){
+  var overlay = qs('welcome-overlay');
+  var globeView = qs('globe-view');
+  if (!overlay || !globeView) return;
+  /* Attach overlay inside globe-view so it's positioned over the globe */
+  globeView.style.position = 'relative';
+  overlay.classList.remove('hidden');
+  overlay.style.display = 'flex';
+  overlay.style.position = 'absolute';
+  overlay.style.zIndex   = '500';
+}
+
+function hideWelcomeOverlay(){
+  var overlay = qs('welcome-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'none';
+  overlay.classList.add('hidden');
+  sessionStorage.setItem('welcome_dismissed', '1');
+}
+
+qs('welcome-add-btn').addEventListener('click', function(){
+  hideWelcomeOverlay();
+  qs('add-modal').classList.remove('hidden');
+});
+
+qs('welcome-dismiss-btn').addEventListener('click', function(){
+  hideWelcomeOverlay();
+});
+
+/* ================================================================
+   AVATAR UPLOAD — base64 encode, preview, attach to POST payload
+   ================================================================ */
+var AVATAR_BASE64 = null; /* module-level, cleared on modal close */
+
+qs('f-avatar').addEventListener('change', function(){
+  var file = this.files && this.files[0];
+  if (!file) return;
+
+  /* 2MB guard */
+  if (file.size > 2 * 1024 * 1024) {
+    qs('modal-save-status').textContent = 'Image too large (max 2MB)';
+    qs('modal-save-status').style.color = '#EF4444';
+    this.value = '';
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e){
+    AVATAR_BASE64 = e.target.result; /* data:image/...;base64,... */
+
+    /* Show preview */
+    var img = qs('avatar-img');
+    var placeholder = qs('avatar-placeholder');
+    var clearBtn = qs('avatar-clear-btn');
+    img.src = AVATAR_BASE64;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+    clearBtn.style.display = 'block';
+
+    /* Border turns solid when image loaded */
+    var preview = qs('avatar-preview');
+    preview.style.border = '1.5px solid rgba(14,165,233,.6)';
+
+    qs('modal-save-status').textContent = '';
+  };
+  reader.onerror = function(){
+    qs('modal-save-status').textContent = 'Could not read image file';
+    qs('modal-save-status').style.color = '#EF4444';
+  };
+  reader.readAsDataURL(file);
+});
+
+function clearAvatar(){
+  AVATAR_BASE64 = null;
+  var img = qs('avatar-img');
+  var placeholder = qs('avatar-placeholder');
+  var clearBtn = qs('avatar-clear-btn');
+  img.src = '';
+  img.style.display = 'none';
+  placeholder.style.display = 'block';
+  clearBtn.style.display = 'none';
+  qs('avatar-preview').style.border = '1.5px dashed rgba(14,165,233,.3)';
+  qs('f-avatar').value = '';
+}
+
+/* Also clear avatar state when modal is closed */
+function resetModal(){
+  clearAvatar();
+  ['f-name','f-industry','f-desc','f-country','f-cc','f-city',
+   'f-address','f-lat','f-lon','f-val','f-rev','f-ins','f-replace','f-notes'].forEach(function(id){
+    var el = qs(id); if (el) el.value = '';
+  });
+  document.querySelectorAll('#add-modal input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  qs('modal-save-status').textContent = '';
+}
 </script>
 </body>
 </html>
