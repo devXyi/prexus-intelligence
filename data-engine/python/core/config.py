@@ -12,14 +12,21 @@ from typing import Optional
 
 
 # ─── Base paths ───────────────────────────────────────────────────────────────
-BASE_DIR   = Path(os.environ.get("METEORIUM_BASE", "/var/meteorium"))
-LAKE_DIR   = BASE_DIR / "lake"          # Layer 2: raw telemetry files
-CACHE_DIR  = BASE_DIR / "cache"         # Layer 3: preprocessed tiles
-STORE_DIR  = BASE_DIR / "store"         # Layer 4: feature store
-LOG_DIR    = BASE_DIR / "logs"
+BASE_DIR = Path(os.environ.get("METEORIUM_BASE", "/tmp/meteorium"))
 
-for d in [LAKE_DIR, CACHE_DIR, STORE_DIR, LOG_DIR]:
-    d.mkdir(parents=True, exist_ok=True)
+LAKE_DIR  = BASE_DIR / "lake"
+CACHE_DIR = BASE_DIR / "cache"
+STORE_DIR = BASE_DIR / "store"
+LOG_DIR   = BASE_DIR / "logs"
+
+# ✅ Safe directory creation
+for d in (LAKE_DIR, CACHE_DIR, STORE_DIR, LOG_DIR):
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        # fallback safety (never crash app)
+        fallback = Path("/tmp/meteorium_fallback") / d.name
+        fallback.mkdir(parents=True, exist_ok=True)
 
 
 # ─── Database ─────────────────────────────────────────────────────────────────
