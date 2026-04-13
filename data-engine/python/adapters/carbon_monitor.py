@@ -148,6 +148,9 @@ class CarbonMonitorAdapter(BaseAdapter):
 
     _semaphore = asyncio.Semaphore(4)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
     async def fetch(
         self,
         lat: float,
