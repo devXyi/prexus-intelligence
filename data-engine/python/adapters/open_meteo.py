@@ -126,6 +126,9 @@ class OpenMeteoAdapter(BaseAdapter):
     # Client-side rate limit: max 8 concurrent requests
     _semaphore = asyncio.Semaphore(8)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
     async def fetch(
         self,
         lat: float,
