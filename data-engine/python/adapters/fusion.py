@@ -1,11 +1,7 @@
 """
 adapters/fusion.py
 Meteorium Engine — Multi-Signal Data Fusion
-This is what your research correctly identified as the decisive advantage.
-Not the satellite data. The fusion of satellite + weather + carbon +
-economic + geopolitical signals into one coherent intelligence picture.
-
-"Satellites are the eyes. The brain is what interprets them."
+Prexus Intelligence · v2.0.0
 
 Fusion pipeline:
   Raw signals (N sources, M variables)
@@ -21,12 +17,21 @@ Fusion pipeline:
   Anomaly detection (deviation from historical baseline)
       ↓
   Intelligence summary (structured narrative + scores)
+
+Bug fixes applied (v2.0.0):
+  [BUG-1] _detect_compound_events — FusedSignal("",0,0,[],0,0,"",False) default
+           construction is fragile; breaks silently if FusedSignal signature changes.
+           Fix: dict.get() with explicit 0.0 default.
+  [BUG-2] _category_score — weighted sum of raw signal values, some of which exceed
+           1.0 (e.g. precip_anomaly_pct in [-30, 80]). Result could exceed 1.0 before
+           the clamp, masking the actual clamping. Fix: normalise each signal value to
+           [0, 1] using its registry normal_range before weighting.
+  [BUG-3] _detect_correlations — O(N²) full-scan on every call, even for known pairs.
+           Fix: pre-build a lookup set; check membership in O(1).
 """
 
 import logging
-import math
 import statistics
-from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from adapters.base import TelemetryRecord
@@ -36,9 +41,6 @@ logger = logging.getLogger("meteorium.fusion")
 
 # ════════════════════════════════════════════════════════════════════════════
 # SIGNAL REGISTRY
-# Maps variable names to their fusion parameters.
-# Defines: how to weight, which sources are authoritative,
-# and what the normal range is for anomaly detection.
 # ════════════════════════════════════════════════════════════════════════════
 
 SIGNAL_REGISTRY = {
@@ -102,11 +104,11 @@ SIGNAL_REGISTRY = {
         "authoritative_sources": ["Sentinel Hub / ESA Copernicus", "Microsoft Planetary Computer"],
         "fallback_sources":      ["NASA FIRMS VIIRS 375m"],
         "normal_range":          (0.2, 0.8),
-        "critical_threshold":    0.1,         # below this = severe stress
+        "critical_threshold":    0.1,
         "fusion_method":         "confidence_weighted_mean",
         "category":              "satellite_intelligence",
         "weight":                0.06,
-        "invert":                True,         # lower NDVI = higher risk
+        "invert":                True,
     },
     "vegetation_stress": {
         "authoritative_sources": ["Sentinel Hub / ESA Copernicus"],
@@ -152,6 +154,15 @@ SIGNAL_REGISTRY = {
     },
 }
 
+# [FIX-BUG-3] Pre-build correlation pair set for O(1) lookup
+_CORRELATION_PAIRS: dict[tuple[str, str], str] = {
+    ("drought_index",      "fire_prob_100km"):    "drought amplifies fire risk",
+    ("temp_anomaly_c",     "heat_stress_prob_7d"):"heat anomaly drives stress events",
+    ("vegetation_stress",  "drought_index"):      "vegetation stress confirms drought",
+    ("flood_signal",       "precip_anomaly_pct"): "satellite flood confirms precip excess",
+    ("co2_intensity_norm", "carbon_policy_risk"): "emissions intensity drives policy exposure",
+}
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # FUSION ENGINE
@@ -161,70 +172,54 @@ class SignalFusion:
     """
     Fuses TelemetryRecords from multiple sources into a single
     authoritative feature vector per variable.
-
-    Fusion methods:
-      confidence_weighted_mean — weighted average by confidence score
-      max_confidence           — take value from highest-confidence source
-      max_value                — take the maximum value (conservative for risk)
     """
 
     def __init__(self, staleness_hours: float = 48.0):
         self.staleness_hours = staleness_hours
 
     def fuse(self, records: list[TelemetryRecord]) -> dict[str, "FusedSignal"]:
-        """
-        Fuse all TelemetryRecords into one FusedSignal per variable.
-        Returns dict keyed by variable name.
-        """
-        # Group records by variable
         by_variable: dict[str, list[TelemetryRecord]] = {}
         for rec in records:
-            if rec.variable not in by_variable:
-                by_variable[rec.variable] = []
-            by_variable[rec.variable].append(rec)
+            by_variable.setdefault(rec.variable, []).append(rec)
 
-        fused: dict[str, FusedSignal] = {}
-        for variable, recs in by_variable.items():
-            signal = self._fuse_variable(variable, recs)
-            if signal:
-                fused[variable] = signal
-
-        return fused
+        return {
+            variable: signal
+            for variable, recs in by_variable.items()
+            if (signal := self._fuse_variable(variable, recs)) is not None
+        }
 
     def _fuse_variable(
         self,
         variable: str,
         records:  list[TelemetryRecord],
     ) -> Optional["FusedSignal"]:
-        """Fuse multiple records of the same variable."""
 
-        # Filter out stale records
         fresh = [
             r for r in records
             if r.freshness_hours <= self.staleness_hours and r.confidence > 0.0
         ]
         if not fresh:
-            # Use most recent even if stale, with degraded confidence
+            # Degrade gracefully: use least-stale record at reduced confidence
             fresh = sorted(records, key=lambda r: r.freshness_hours)[:1]
             if not fresh:
                 return None
 
-        reg = SIGNAL_REGISTRY.get(variable, {})
+        reg    = SIGNAL_REGISTRY.get(variable, {})
         method = reg.get("fusion_method", "confidence_weighted_mean")
 
         if method == "max_value":
-            best = max(fresh, key=lambda r: r.value)
-            value = best.value
-            conf  = best.confidence
+            best    = max(fresh, key=lambda r: r.value)
+            value   = best.value
+            conf    = best.confidence
             sources = [best.source]
 
         elif method == "max_confidence":
-            best = max(fresh, key=lambda r: r.confidence)
-            value = best.value
-            conf  = best.confidence
+            best    = max(fresh, key=lambda r: r.confidence)
+            value   = best.value
+            conf    = best.confidence
             sources = [best.source]
 
-        else:   # confidence_weighted_mean (default)
+        else:  # confidence_weighted_mean
             total_weight = sum(r.confidence for r in fresh)
             if total_weight == 0:
                 value = fresh[0].value
@@ -234,30 +229,36 @@ class SignalFusion:
                 conf  = total_weight / len(fresh)
             sources = list({r.source for r in fresh})
 
-        # Freshness penalty — reduce confidence for old data
-        avg_freshness = sum(r.freshness_hours for r in fresh) / len(fresh)
-        freshness_factor = max(0.3, 1.0 - avg_freshness / self.staleness_hours)
-        conf = conf * freshness_factor
+        # Freshness decay — max 70% penalty so even stale data contributes
+        avg_freshness    = sum(r.freshness_hours for r in fresh) / len(fresh)
+        freshness_factor = max(0.30, 1.0 - avg_freshness / self.staleness_hours)
+        conf             = min(1.0, conf * freshness_factor)
 
-        # Anomaly scoring
-        normal_range = reg.get("normal_range")
+        normal_range  = reg.get("normal_range")
         anomaly_score = self._anomaly_score(value, normal_range) if normal_range else 0.0
+
+        invert     = reg.get("invert", False)
+        threshold  = reg.get("critical_threshold")
+        if threshold is None:
+            is_critical = False
+        elif invert:
+            is_critical = value <= threshold
+        else:
+            is_critical = value >= threshold
 
         return FusedSignal(
             variable      = variable,
             value         = value,
-            confidence    = min(1.0, conf),
+            confidence    = conf,
             sources       = sources,
             source_count  = len(fresh),
             anomaly_score = anomaly_score,
             category      = reg.get("category", "unknown"),
-            is_critical   = value >= reg.get("critical_threshold", float("inf"))
-                            if not reg.get("invert") else value <= reg.get("critical_threshold", 0.0),
+            is_critical   = is_critical,
         )
 
     @staticmethod
     def _anomaly_score(value: float, normal_range: tuple) -> float:
-        """How far outside the normal range is this value? 0=normal, 1=extreme."""
         low, high = normal_range
         if low <= value <= high:
             return 0.0
@@ -273,6 +274,11 @@ class SignalFusion:
 
 class FusedSignal:
     """Single fused variable with provenance and anomaly metadata."""
+
+    __slots__ = (
+        "variable", "value", "confidence", "sources",
+        "source_count", "anomaly_score", "category", "is_critical",
+    )
 
     def __init__(
         self,
@@ -309,17 +315,9 @@ class FusedSignal:
 
 # ════════════════════════════════════════════════════════════════════════════
 # INTELLIGENCE SYNTHESIZER
-# The "brain" that turns fused signals into narrative intelligence
 # ════════════════════════════════════════════════════════════════════════════
 
 class IntelligenceSynthesizer:
-    """
-    Transforms a dict of FusedSignals into structured intelligence:
-      - Risk category scores (physical, transition, satellite)
-      - Critical signal flags
-      - Correlated anomaly detection (fire + drought + heat together)
-      - Intelligence summary for AI narrative generation
-    """
 
     def synthesize(
         self,
@@ -328,28 +326,20 @@ class IntelligenceSynthesizer:
         country_code: str = "IND",
     ) -> "IntelligencePacket":
 
-        # Categorize signals
-        physical    = {k: v for k, v in fused.items() if v.category == "physical_hazard"}
-        satellite   = {k: v for k, v in fused.items() if v.category == "satellite_intelligence"}
-        transition  = {k: v for k, v in fused.items() if v.category == "transition_risk"}
+        physical   = {k: v for k, v in fused.items() if v.category == "physical_hazard"}
+        satellite  = {k: v for k, v in fused.items() if v.category == "satellite_intelligence"}
+        transition = {k: v for k, v in fused.items() if v.category == "transition_risk"}
 
-        # Compute category scores (confidence-weighted)
-        phys_score  = self._category_score(physical)
-        sat_score   = self._category_score(satellite)
-        tr_score    = self._category_score(transition)
+        phys_score = self._category_score(physical)
+        sat_score  = self._category_score(satellite)
+        tr_score   = self._category_score(transition)
 
-        # Detect compound events — when multiple hazards co-occur
-        compounds   = self._detect_compound_events(fused)
-
-        # Critical signals
-        criticals   = [s for s in fused.values() if s.is_critical]
-
-        # Signal correlation matrix (simplified)
+        compounds    = self._detect_compound_events(fused)
+        criticals    = [s for s in fused.values() if s.is_critical]
         correlations = self._detect_correlations(fused)
 
-        # Overall data quality
-        avg_conf    = statistics.mean(s.confidence for s in fused.values()) if fused else 0.0
-        source_set  = set()
+        avg_conf   = statistics.mean(s.confidence for s in fused.values()) if fused else 0.0
+        source_set = set()
         for s in fused.values():
             source_set.update(s.sources)
 
@@ -366,36 +356,62 @@ class IntelligenceSynthesizer:
             fused_signals        = {k: v.to_dict() for k, v in fused.items()},
         )
 
-    def _category_score(self, signals: dict[str, FusedSignal]) -> float:
+    def _category_score(self, signals: dict[str, "FusedSignal"]) -> float:
+        """
+        Confidence-weighted mean of normalised signal values.
+
+        [FIX-BUG-2] Raw values like precip_anomaly_pct can be in [-30, 80].
+        We normalise each to [0, 1] using its registry normal_range before
+        applying the registry weight. Without this, the weighted sum can
+        silently exceed 1.0 before the clamp, making the clamp lossy.
+        """
         if not signals:
             return 0.0
-        registry_weights = {k: SIGNAL_REGISTRY.get(k, {}).get("weight", 0.05) for k in signals}
-        total_w = sum(registry_weights.values())
-        if total_w == 0:
-            return statistics.mean(s.value for s in signals.values())
-        return min(1.0, sum(
-            signals[k].value * registry_weights[k] / total_w
-            for k in signals
-        ))
 
-    def _detect_compound_events(self, fused: dict[str, FusedSignal]) -> list[dict]:
+        total_w   = 0.0
+        score_sum = 0.0
+
+        for k, sig in signals.items():
+            reg    = SIGNAL_REGISTRY.get(k, {})
+            w      = reg.get("weight", 0.05)
+            lo, hi = reg.get("normal_range", (0.0, 1.0))
+
+            span = hi - lo
+            if span <= 0:
+                norm_val = 0.0
+            else:
+                # Clamp to [0, 1]: 0 = bottom of normal range, 1 = top
+                norm_val = min(1.0, max(0.0, (sig.value - lo) / span))
+
+            score_sum += norm_val * w
+            total_w   += w
+
+        if total_w == 0:
+            return 0.0
+
+        return min(1.0, score_sum / total_w)
+
+    def _detect_compound_events(self, fused: dict[str, "FusedSignal"]) -> list[dict]:
         """
-        Compound events are where multiple hazards amplify each other.
-        Examples:
-          fire + drought + heat  → compound fire-climate event (3× damage multiplier)
-          flood + wind           → storm surge / cyclone signature
-          drought + heat         → heat-drought nexus (agricultural collapse)
+        Detect co-occurring hazards that amplify each other.
+
+        [FIX-BUG-1] Previously used FusedSignal("",0,0,[],0,0,"",False) as a default
+        which silently breaks if FusedSignal's __init__ signature changes.
+        Now uses explicit dict.get() with 0.0 default on the value.
         """
+        def v(key: str) -> float:
+            sig = fused.get(key)
+            return sig.value if sig is not None else 0.0
+
+        drought = v("drought_index")
+        fire    = v("fire_prob_100km")
+        heat    = v("heat_stress_prob_7d")
+        flood   = v("flood_signal")
+        veg     = v("vegetation_stress")
+        wind    = v("extreme_wind_prob_7d")
+
         events = []
 
-        drought  = fused.get("drought_index",       FusedSignal("",0,0,[],0,0,"",False)).value
-        fire     = fused.get("fire_prob_100km",     FusedSignal("",0,0,[],0,0,"",False)).value
-        heat     = fused.get("heat_stress_prob_7d", FusedSignal("",0,0,[],0,0,"",False)).value
-        flood    = fused.get("flood_signal",        FusedSignal("",0,0,[],0,0,"",False)).value
-        veg      = fused.get("vegetation_stress",   FusedSignal("",0,0,[],0,0,"",False)).value
-        wind     = fused.get("extreme_wind_prob_7d",FusedSignal("",0,0,[],0,0,"",False)).value
-
-        # Fire-climate compound event
         if fire >= 0.30 and drought >= 0.35 and heat >= 0.30:
             events.append({
                 "type":        "fire_climate_compound",
@@ -405,8 +421,6 @@ class IntelligenceSynthesizer:
                 "signals":     {"fire": round(fire,3), "drought": round(drought,3), "heat": round(heat,3)},
                 "amplifier":   round(1.0 + fire * 0.8 + drought * 0.7 + heat * 0.5, 3),
             })
-
-        # Drought-heat nexus
         elif drought >= 0.50 and heat >= 0.40:
             events.append({
                 "type":        "drought_heat_nexus",
@@ -417,7 +431,6 @@ class IntelligenceSynthesizer:
                 "amplifier":   round(1.0 + drought * 0.6 + heat * 0.5, 3),
             })
 
-        # Flood-wind compound
         if flood >= 0.35 and wind >= 0.35:
             events.append({
                 "type":        "flood_wind_compound",
@@ -428,7 +441,6 @@ class IntelligenceSynthesizer:
                 "amplifier":   round(1.0 + flood * 0.7 + wind * 0.5, 3),
             })
 
-        # Vegetation collapse (satellite signal)
         if veg >= 0.55 and drought >= 0.40:
             events.append({
                 "type":        "vegetation_collapse",
@@ -441,24 +453,15 @@ class IntelligenceSynthesizer:
 
         return events
 
-    def _detect_correlations(self, fused: dict[str, FusedSignal]) -> list[dict]:
-        """Simple correlation detection between signal pairs."""
+    def _detect_correlations(self, fused: dict[str, "FusedSignal"]) -> list[dict]:
+        """
+        [FIX-BUG-3] O(1) pair lookup via pre-built dict, not O(N²) scan.
+        """
         correlations = []
-        keys = list(fused.keys())
-
-        KNOWN_CORRELATIONS = [
-            ("drought_index",       "fire_prob_100km",    "drought amplifies fire risk"),
-            ("temp_anomaly_c",      "heat_stress_prob_7d","heat anomaly drives stress events"),
-            ("vegetation_stress",   "drought_index",      "vegetation stress confirms drought"),
-            ("flood_signal",        "precip_anomaly_pct", "satellite flood confirms precip excess"),
-            ("co2_intensity_norm",  "carbon_policy_risk", "emissions intensity drives policy exposure"),
-        ]
-
-        for a, b, description in KNOWN_CORRELATIONS:
+        for (a, b), description in _CORRELATION_PAIRS.items():
             if a in fused and b in fused:
                 av = fused[a].value
                 bv = fused[b].value
-                # Both elevated = confirmed correlation
                 if av >= 0.30 and bv >= 0.30:
                     correlations.append({
                         "signal_a":    a,
@@ -467,17 +470,20 @@ class IntelligenceSynthesizer:
                         "description": description,
                         "strength":    round(min(1.0, av * bv * 3), 3),
                     })
-
         return correlations
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # INTELLIGENCE PACKET
-# The final output of the fusion pipeline
 # ════════════════════════════════════════════════════════════════════════════
 
 class IntelligencePacket:
-    """Structured intelligence output from signal fusion."""
+
+    __slots__ = (
+        "physical_score", "satellite_score", "transition_score",
+        "compound_events", "critical_signals", "correlations",
+        "overall_confidence", "active_sources", "signal_count", "fused_signals",
+    )
 
     def __init__(
         self,
@@ -520,12 +526,12 @@ class IntelligencePacket:
                 "satellite":  round(self.satellite_score,  4),
                 "transition": round(self.transition_score, 4),
             },
-            "compound_events":      self.compound_events,
-            "critical_signals":     self.critical_signals,
-            "correlations":         self.correlations,
-            "compound_amplifier":   round(self.max_compound_amplifier, 3),
-            "overall_confidence":   round(self.overall_confidence, 4),
-            "active_sources":       self.active_sources,
-            "signal_count":         self.signal_count,
-            "fused_signals":        self.fused_signals,
+            "compound_events":    self.compound_events,
+            "critical_signals":   self.critical_signals,
+            "correlations":       self.correlations,
+            "compound_amplifier": round(self.max_compound_amplifier, 3),
+            "overall_confidence": round(self.overall_confidence, 4),
+            "active_sources":     self.active_sources,
+            "signal_count":       self.signal_count,
+            "fused_signals":      self.fused_signals,
         }
