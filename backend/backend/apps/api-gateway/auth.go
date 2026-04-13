@@ -61,7 +61,7 @@ type Claims struct {
 func handleRegister(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -73,14 +73,14 @@ func handleRegister(c *gin.Context) {
 	var existingID int64
 	err := DB.QueryRowContext(ctx, "SELECT id FROM users WHERE email=$1", email).Scan(&existingID)
 	if err == nil {
-		c.JSON(409, gin.H{"error": "Email already registered"})
+		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("bcrypt error: %v", err)
-		c.JSON(500, gin.H{"error": "Failed to process password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process password"})
 		return
 	}
 
@@ -93,17 +93,17 @@ func handleRegister(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("register DB error: %v", err)
-		c.JSON(500, gin.H{"error": "Failed to create account"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
 		return
 	}
 
 	token, err := issueToken(userID, email, "user")
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Token generation failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Token generation failed"})
 		return
 	}
 
-	c.JSON(201, AuthResponse{
+	c.JSON(http.StatusCreated, AuthResponse{
 		Token: token,
 		User:  UserDTO{ID: userID, Email: email, FullName: req.FullName, OrgName: req.OrgName, Role: "user"},
 	})
@@ -116,7 +116,7 @@ func handleRegister(c *gin.Context) {
 func handleLogin(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -139,22 +139,22 @@ func handleLogin(c *gin.Context) {
 
 	if err != nil {
 		_ = bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(req.Password))
-		c.JSON(401, gin.H{"error": "Invalid credentials"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
 	if bcrypt.CompareHashAndPassword([]byte(passHash), []byte(req.Password)) != nil {
-		c.JSON(401, gin.H{"error": "Invalid credentials"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
 	token, err := issueToken(id, email, role)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Token generation failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Token generation failed"})
 		return
 	}
 
-	c.JSON(200, AuthResponse{
+	c.JSON(http.StatusOK, AuthResponse{
 		Token: token,
 		User:  UserDTO{ID: id, Email: email, FullName: fullName, OrgName: orgName, Role: role},
 	})
@@ -178,11 +178,11 @@ func handleGetMe(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("getMe error: %v", err)
-		c.JSON(500, gin.H{"error": "User fetch failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User fetch failed"})
 		return
 	}
 
-	c.JSON(200, UserDTO{
+	c.JSON(http.StatusOK, UserDTO{
 		ID:       userID,
 		Email:    c.GetString("email"),
 		FullName: fullName,
@@ -200,7 +200,7 @@ func handleUpdateMe(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -214,11 +214,11 @@ func handleUpdateMe(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("updateMe error: %v", err)
-		c.JSON(500, gin.H{"error": "Update failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
 		return
 	}
 
-	c.JSON(200, gin.H{"status": "updated"})
+	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.GetHeader("Authorization")
 		if h == "" || !strings.HasPrefix(h, "Bearer ") {
-			c.AbortWithStatusJSON(401, gin.H{"error": "Authorization required"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization required"})
 			return
 		}
 
@@ -270,7 +270,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(401, gin.H{"error": "Invalid or expired token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return
 		}
 
