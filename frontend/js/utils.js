@@ -171,3 +171,14 @@ export function generateDeviceId() {
   return 'DEV-' + crypto.randomUUID();
 }
 
+/* ── Security ────────────────────────────────────────────── */
+
+/**
+ * Sanitize user/AI content before injecting as innerHTML.
+ * Escapes HTML entities, preserves newlines as <br/>.
+ */
+export function sanitizeHTML(str) {
+  const d = document.createElement('div');
+  d.textContent = String(str ?? '');
+  return d.innerHTML.replace(/\n/g, '<br/>');
+}
