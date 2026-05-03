@@ -2,10 +2,15 @@
  * modules/meteorium/alerts.js
  * Prexus Intelligence — Alert Command Center
  * THE GREAT FILE · Phase 2
+ *
+ * FIXES:
+ *  - XSS: sanitizeHTML() on all dynamic fields in _card()
+ *  - XSS: filter onclick replaced with data-filter + delegated listener
+ *  - Removed window._met_alerts_filter global
  */
 
 import { store } from '../../js/store.js';
-import { fPct, riskColor, riskClass } from '../../js/utils.js';
+import { fPct, riskColor, riskClass, sanitizeHTML } from '../../js/utils.js';
 import { updateTopbar } from './meteorium.js';
 
 const ALERTS = [
@@ -53,7 +58,7 @@ function _render(container) {
       </div>
       <div style="display:flex;gap:6px" id="alert-filters">
         ${['ALL','CRITICAL','HIGH','ELEVATED'].map(f=>`
-          <button onclick="window._met_alerts_filter('${f}')"
+          <button data-filter="${f}"
             style="font-size:8px;letter-spacing:.1em;padding:3px 10px;border-radius:2px;cursor:pointer;
             border:1px solid ${_filter===f?'var(--cobalt-hi)':'var(--border)'};
             color:${_filter===f?'var(--cobalt)':'var(--text-secondary)'};
@@ -65,18 +70,20 @@ function _render(container) {
     </div>
     <div id="alert-list">${_filtered().map(_card).join('')}</div>`;
 
-  window._met_alerts_filter = (f) => {
-    _filter = f;
-    const list = document.getElementById('alert-list');
-    const filters = document.getElementById('alert-filters');
+  // FIX: delegated listener — no filter value injected into onclick
+  container.querySelector('#alert-filters')?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-filter]');
+    if (!btn) return;
+    _filter = btn.dataset.filter;
+    const list = container.querySelector('#alert-list');
     if (list) list.innerHTML = _filtered().map(_card).join('');
-    if (filters) filters.querySelectorAll('button').forEach(btn => {
-      const active = btn.textContent.trim() === f;
-      btn.style.borderColor = active ? 'var(--cobalt-hi)' : 'var(--border)';
-      btn.style.color       = active ? 'var(--cobalt)'    : 'var(--text-secondary)';
-      btn.style.background  = active ? 'var(--cobalt-lo)' : 'transparent';
+    container.querySelectorAll('#alert-filters [data-filter]').forEach(b => {
+      const active = b.dataset.filter === _filter;
+      b.style.borderColor = active ? 'var(--cobalt-hi)' : 'var(--border)';
+      b.style.color       = active ? 'var(--cobalt)'    : 'var(--text-secondary)';
+      b.style.background  = active ? 'var(--cobalt-lo)' : 'transparent';
     });
-  };
+  });
 }
 
 function _filtered() {
@@ -84,25 +91,37 @@ function _filtered() {
 }
 
 function _card(al) {
-  const c=riskColor(al.score);
-  const cls=riskClass(al.score);
-  const bg=al.sev==='CRITICAL'?'rgba(239,68,68,.2)':al.sev==='HIGH'?'rgba(245,158,11,.2)':'var(--cobalt-mid)';
-  const tx=al.sev==='CRITICAL'?'#fca5a5':al.sev==='HIGH'?'#fcd34d':'var(--cobalt)';
-  const bd=al.sev==='CRITICAL'?'rgba(239,68,68,.3)':al.sev==='HIGH'?'rgba(245,158,11,.3)':'var(--cobalt-hi)';
-  const chainHTML=al.chain.map((n,i)=>`
+  const c   = riskColor(al.score);
+  const cls = riskClass(al.score);
+  const bg  = al.sev==='CRITICAL'?'rgba(239,68,68,.2)':al.sev==='HIGH'?'rgba(245,158,11,.2)':'var(--cobalt-mid)';
+  const tx  = al.sev==='CRITICAL'?'#fca5a5':al.sev==='HIGH'?'#fcd34d':'var(--cobalt)';
+  const bd  = al.sev==='CRITICAL'?'rgba(239,68,68,.3)':al.sev==='HIGH'?'rgba(245,158,11,.3)':'var(--cobalt-hi)';
+
+  // FIX: sanitize all dynamic string fields before innerHTML injection
+  const safeName   = sanitizeHTML(al.name   || '');
+  const safeAsset  = sanitizeHTML(al.asset  || '');
+  const safeType   = sanitizeHTML(al.type   || '');
+  const safeMsg    = sanitizeHTML(al.msg    || '');
+  const safeAction = sanitizeHTML(al.action || '');
+  const safeSrc    = sanitizeHTML(al.src    || '');
+  const safeSev    = sanitizeHTML(al.sev    || '');
+
+  const chainHTML = al.chain.map((n, i) => `
     <div class="met-cascade-node">
       <div class="met-cascade-dot" style="background:${n.color};box-shadow:0 0 4px ${n.color}"></div>
-      <span class="met-cascade-label" style="font-size:10px">${n.label}</span>
+      <span class="met-cascade-label" style="font-size:10px">${sanitizeHTML(n.label)}</span>
       <span class="met-cascade-val" style="font-size:13px;color:${n.color}">${fPct(n.val)}</span>
-    </div>${i<al.chain.length-1?'<div class="met-cascade-arrow">↓</div>':''}`).join('');
+    </div>${i < al.chain.length - 1 ? '<div class="met-cascade-arrow">↓</div>' : ''}`
+  ).join('');
+
   return `<div class="met-decision ${cls}" style="margin-bottom:10px">
     <div class="met-dec-header">
-      <span class="met-dec-badge" style="background:${bg};color:${tx};border:1px solid ${bd}">${al.sev}</span>
-      <span class="met-dec-asset">${al.name}</span>
-      <span class="met-dec-type">${al.type} RISK</span>
+      <span class="met-dec-badge" style="background:${bg};color:${tx};border:1px solid ${bd}">${safeSev}</span>
+      <span class="met-dec-asset">${safeName}</span>
+      <span class="met-dec-type">${safeType} RISK</span>
       <span class="met-dec-score" style="color:${c}">${fPct(al.score)}</span>
     </div>
-    <div class="met-dec-msg">${al.msg}</div>
+    <div class="met-dec-msg">${safeMsg}</div>
     <div class="met-risk-bar" style="margin-bottom:8px"><div class="met-risk-fill" style="width:${al.score*100}%;background:${c}"></div></div>
     <div class="met-cascade" style="margin-bottom:8px">
       <div class="met-cascade-title">Risk Propagation Chain</div>
@@ -111,11 +130,11 @@ function _card(al) {
     </div>
     <div style="background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:2px;padding:8px 10px;margin-bottom:8px">
       <div style="font-size:7.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Recommended Action</div>
-      <div style="font-size:11px;color:var(--text-primary);line-height:1.55">${al.action}</div>
+      <div style="font-size:11px;color:var(--text-primary);line-height:1.55">${safeAction}</div>
     </div>
     <div class="met-dec-meta">
-      <span>⬡ ${al.asset}</span><span>◎ ${al.ts}</span>
-      <span style="color:var(--text-muted)">SRC: ${al.src}</span>
+      <span>⬡ ${safeAsset}</span><span>◎ ${al.ts}</span>
+      <span style="color:var(--text-muted)">SRC: ${safeSrc}</span>
       <div style="margin-left:auto;display:flex;gap:6px">
         <span class="tag tag-cobalt" style="cursor:pointer">ANALYZE</span>
         <span class="tag tag-dim" style="cursor:pointer">DISMISS</span>
@@ -123,4 +142,3 @@ function _card(al) {
     </div>
   </div>`;
 }
-
