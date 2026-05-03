@@ -2,11 +2,17 @@
  * modules/meteorium/ai.js
  * Prexus Intelligence — AI Intelligence Assistant
  * THE GREAT FILE · Phase 2
+ *
+ * FIXES:
+ *  - XSS: _appendMsg sanitizes content before markdown render
+ *  - XSS: suggested query onclick replaced with data-prompt + delegated listener
+ *  - XSS: model selector onclick replaced with data-model + delegated listener
+ *  - Removed window._met_ai_* globals
  */
 
 import { store } from '../../js/store.js';
 import { chatAI } from '../../js/api.js';
-import { fPct, fUsd, riskLabel } from '../../js/utils.js';
+import { fPct, fUsd, riskLabel, sanitizeHTML } from '../../js/utils.js';
 
 const SUGGESTED=[
   'Which assets are most exposed to wildfire risk this month?',
@@ -18,7 +24,12 @@ const SUGGESTED=[
   'What mitigation actions reduce our CVaR 95% the most?',
 ];
 
-const MODELS=[{id:'gemini',label:'Gemini 2.0',icon:'G'},{id:'claude',label:'Claude 3.5',icon:'C'},{id:'chatgpt',label:'GPT-4o',icon:'O'}];
+const MODELS=[
+  {id:'gemini',  label:'Gemini 2.0', icon:'G'},
+  {id:'claude',  label:'Claude 3.5', icon:'C'},
+  {id:'chatgpt', label:'GPT-4o',     icon:'O'},
+];
+
 let _history=[], _model='gemini', _loading=false;
 
 export function init(container){
@@ -29,11 +40,13 @@ export function init(container){
         <div class="panel-head">
           <span class="panel-title">Intelligence Assistant</span>
           <div style="margin-left:auto;display:flex;gap:5px">
-            ${MODELS.map(m=>`<button class="met-model-btn ${m.id===_model?'active':''}" onclick="window._met_ai_model('${m.id}')" id="ai-model-${m.id}">
-              <span style="width:12px;height:12px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;
-                background:${m.id==='gemini'?'rgba(66,133,244,.2)':m.id==='claude'?'rgba(204,120,92,.2)':'rgba(116,195,101,.2)'};
-                color:${m.id==='gemini'?'#4285F4':m.id==='claude'?'#cc7860':'#74C365'}">${m.icon}</span>${m.label}
-            </button>`).join('')}
+            ${MODELS.map(m=>`
+              <button class="met-model-btn ${m.id===_model?'active':''}"
+                data-model="${m.id}" id="ai-model-${m.id}">
+                <span style="width:12px;height:12px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;
+                  background:${m.id==='gemini'?'rgba(66,133,244,.2)':m.id==='claude'?'rgba(204,120,92,.2)':'rgba(116,195,101,.2)'};
+                  color:${m.id==='gemini'?'#4285F4':m.id==='claude'?'#cc7860':'#74C365'}">${m.icon}</span>${m.label}
+              </button>`).join('')}
           </div>
         </div>
         <div id="ai-msgs" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column">
@@ -46,9 +59,8 @@ export function init(container){
               style="flex:1;background:rgba(0,0,0,.5);border:1px solid var(--border-input);color:var(--text-primary);
                 font-family:var(--font-ui);font-size:12px;padding:10px 12px;border-radius:6px;resize:none;outline:none;
                 min-height:38px;max-height:100px;line-height:1.5;transition:border-color .2s"
-              onfocus="this.style.borderColor='var(--cobalt)'" onblur="this.style.borderColor='var(--border-input)'"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window._met_ai_send();}"></textarea>
-            <button onclick="window._met_ai_send()" class="btn btn-primary" style="padding:10px 18px;align-self:flex-end;flex-shrink:0">Send</button>
+              onfocus="this.style.borderColor='var(--cobalt)'" onblur="this.style.borderColor='var(--border-input)'"></textarea>
+            <button id="ai-send" class="btn btn-primary" style="padding:10px 18px;align-self:flex-end;flex-shrink:0">Send</button>
           </div>
           <div style="font-size:8px;color:var(--text-muted);margin-top:4px">Enter to send · Shift+Enter for new line</div>
         </div>
@@ -60,23 +72,46 @@ export function init(container){
         </div>
         <div class="panel">
           <div class="panel-head"><span class="panel-title">Suggested Queries</span></div>
-          <div>
-            ${SUGGESTED.map(p=>`<div onclick="window._met_ai_prompt('${p.replace(/'/g,"\\'")}')"
-              style="padding:9px 12px;font-family:var(--font-serif);font-size:11.5px;font-style:italic;color:var(--text-secondary);
-                border-bottom:1px solid rgba(14,165,233,.07);cursor:pointer;transition:all .15s;line-height:1.45"
-              onmouseover="this.style.background='rgba(14,165,233,.05)';this.style.color='var(--text-primary)'"
-              onmouseout="this.style.background='transparent';this.style.color='var(--text-secondary)'">${p}</div>`).join('')}
+          <div id="ai-suggestions">
+            ${SUGGESTED.map((p,i)=>`
+              <div data-prompt-idx="${i}"
+                style="padding:9px 12px;font-family:var(--font-serif);font-size:11.5px;font-style:italic;
+                  color:var(--text-secondary);border-bottom:1px solid rgba(14,165,233,.07);cursor:pointer;
+                  transition:all .15s;line-height:1.45"
+                onmouseover="this.style.background='rgba(14,165,233,.05)';this.style.color='var(--text-primary)'"
+                onmouseout="this.style.background='transparent';this.style.color='var(--text-secondary)'"
+              >${sanitizeHTML(p)}</div>`).join('')}
           </div>
         </div>
       </div>
     </div>`;
 
-  window._met_ai_model=(id)=>{
-    _model=id;
-    MODELS.forEach(m=>{const b=document.getElementById(`ai-model-${m.id}`);if(b)b.classList.toggle('active',m.id===id);});
-  };
-  window._met_ai_send=_send;
-  window._met_ai_prompt=(p)=>{const inp=document.getElementById('ai-input');if(inp){inp.value=p;_send();}};
+  // ── Model selector ────────────────────────────────────────────────────────
+  container.querySelector('.panel-head')?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-model]');
+    if (!btn) return;
+    _model = btn.dataset.model;
+    MODELS.forEach(m => {
+      container.querySelector(`#ai-model-${m.id}`)?.classList.toggle('active', m.id === _model);
+    });
+  });
+
+  // ── Send button + Enter key ───────────────────────────────────────────────
+  container.querySelector('#ai-send')?.addEventListener('click', _send);
+  container.querySelector('#ai-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _send(); }
+  });
+
+  // FIX: suggested queries use data-prompt-idx — no string injected into onclick
+  container.querySelector('#ai-suggestions')?.addEventListener('click', e => {
+    const el = e.target.closest('[data-prompt-idx]');
+    if (!el) return;
+    const idx = parseInt(el.dataset.promptIdx);
+    const p = SUGGESTED[idx];
+    if (!p) return;
+    const inp = container.querySelector('#ai-input');
+    if (inp) { inp.value = p; _send(); }
+  });
 }
 
 export function destroy(){ _history=[]; _loading=false; }
@@ -105,10 +140,9 @@ function _ctx(){
 
 async function _send(){
   if(_loading)return;
-  const input=document.getElementById('ai-input');
-  const errEl=document.getElementById('ai-err');
-  const msgs=document.getElementById('ai-msgs');
-  const text=input?.value?.trim();
+  const input  = document.getElementById('ai-input');
+  const errEl  = document.getElementById('ai-err');
+  const text   = input?.value?.trim();
   if(!text)return;
   if(errEl){errEl.textContent='';errEl.classList.remove('visible');}
   _history.push({role:'user',content:text});
@@ -119,7 +153,9 @@ async function _send(){
   _appendThink(thinkId);
   try{
     const assets=store.get('assets')||[];
-    const ctx=assets.length?`Senior climate risk analyst. Portfolio: ${assets.slice(0,5).map(a=>`${a.id}(cr=${fPct(a.cr||0)})`).join(', ')}. Be concise.`:'Senior climate risk analyst. Be concise.';
+    const ctx=assets.length
+      ?`Senior climate risk analyst. Portfolio: ${assets.slice(0,5).map(a=>`${a.id}(cr=${fPct(a.cr||0)})`).join(', ')}. Be concise.`
+      :'Senior climate risk analyst. Be concise.';
     const messages=[{role:'user',content:ctx+'\n\nQuery: '+text},..._history.slice(-5,-1)];
     const resp=await chatAI(messages,_model);
     const reply=resp?.result||'No response received.';
@@ -134,13 +170,28 @@ async function _send(){
   }finally{_loading=false;}
 }
 
-function _appendMsg(role,content){
+/**
+ * FIX: sanitize content before markdown transform.
+ * Order matters: escape HTML entities first, THEN apply
+ * markdown-to-HTML so we only introduce tags we control.
+ */
+function _renderContent(content) {
+  // 1. Escape all HTML entities
+  const escaped = sanitizeHTML(content);
+  // 2. Safe to apply our own markdown transforms now
+  return escaped
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br/>');
+}
+
+function _appendMsg(role, content){
   const area=document.getElementById('ai-msgs');
   if(!area)return;
   const time=new Date().toISOString().slice(11,19)+' UTC';
   const div=document.createElement('div');
   div.className=`met-chat-msg ${role}`;
-  div.innerHTML=`<div class="met-chat-bubble">${content.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br/>')}</div>
+  // FIX: _renderContent sanitizes before injecting
+  div.innerHTML=`<div class="met-chat-bubble">${_renderContent(content)}</div>
     <div class="met-chat-meta">${role==='user'?'YOU':'METEORIUM AI · '+_model.toUpperCase()} · ${time}</div>`;
   area.appendChild(div);
   area.scrollTop=area.scrollHeight;
@@ -150,14 +201,19 @@ function _appendThink(id){
   const area=document.getElementById('ai-msgs');
   if(!area)return;
   const div=document.createElement('div');
-  div.className='met-chat-msg assistant';div.id=id;
+  div.className='met-chat-msg assistant';
+  div.id=id;
   div.innerHTML=`<div class="met-chat-bubble" style="display:flex;align-items:center;gap:8px;font-style:italic;color:var(--text-muted)"><span class="spinner"></span>Analyzing…</div>`;
-  area.appendChild(div);area.scrollTop=area.scrollHeight;
+  area.appendChild(div);
+  area.scrollTop=area.scrollHeight;
 }
 
 function _fallback(prompt){
-  if(prompt.toLowerCase().includes('wildfire'))return'Based on current FIRMS VIIRS data, São Paulo Agri Hub (SAO-AGR-008) shows highest wildfire exposure at 87%. Compound fire-climate event (amplifier 3.1×) makes this the most critical asset.';
-  if(prompt.toLowerCase().includes('portfolio'))return'Portfolio composite risk is 52% under SSP2-4.5. Top concerns: São Paulo Agri Hub (87% — compound event), Mumbai Port (71% — monsoon anomaly), Chennai Auto Cluster (65% — heat stress).';
-  if(prompt.toLowerCase().includes('flood'))return'Flood susceptibility elevated for Mumbai Port Terminal (0.68) driven by +147% precipitation anomaly. Chennai coastal zone also shows elevated soil saturation.';
+  if(prompt.toLowerCase().includes('wildfire'))
+    return'Based on current FIRMS VIIRS data, São Paulo Agri Hub (SAO-AGR-008) shows highest wildfire exposure at 87%. Compound fire-climate event (amplifier 3.1×) makes this the most critical asset.';
+  if(prompt.toLowerCase().includes('portfolio'))
+    return'Portfolio composite risk is 52% under SSP2-4.5. Top concerns: São Paulo Agri Hub (87% — compound event), Mumbai Port (71% — monsoon anomaly), Chennai Auto Cluster (65% — heat stress).';
+  if(prompt.toLowerCase().includes('flood'))
+    return'Flood susceptibility elevated for Mumbai Port Terminal (0.68) driven by +147% precipitation anomaly. Chennai coastal zone also shows elevated soil saturation.';
   return'AI service unavailable — offline mode active. For immediate analysis, use the Analysis module with the Monte Carlo scenario builder.';
 }
