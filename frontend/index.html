@@ -1284,7 +1284,7 @@ function initScrollFeatures() {
 
   // GSAP-dedicated elements: clear .reveal initial state (GSAP from() handles it)
   const managed = '.cap-card,.need-card,.module-card,.layer-item,.brief-fact';
-  gsap.set(managed, { opacity: 0, y: 0, clearProps: 'transform' });
+  gsap.set(managed, { clearProps: 'opacity,transform' });
 
   // ── Scroll progress bar ──
   const prog = document.getElementById('scroll-progress');
