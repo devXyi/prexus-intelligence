@@ -763,6 +763,16 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 const isMobile = () => window.matchMedia('(max-width:768px)').matches;
 const prefersReduced = () => window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 const hasFinePonter = () => window.matchMedia('(pointer:fine)').matches;
+const hasGSAP = () => typeof window.gsap !== 'undefined';
+const hasScrollTrigger = () => typeof window.ScrollTrigger !== 'undefined';
+
+function revealStaticContent() {
+  document.querySelectorAll('.reveal').forEach(el => {
+    el.classList.add('visible');
+    el.style.opacity = '1';
+    el.style.transform = 'none';
+  });
+}
 
 /* ═══════════════════════════════════════
    CUSTOM CURSOR
@@ -1144,7 +1154,13 @@ function splitH1() {
    LOADER
 ═══════════════════════════════════════ */
 function initLoader(onComplete) {
-  if (prefersReduced()) { onComplete(); return; }
+  if (prefersReduced() || !hasGSAP()) {
+    const loader = document.getElementById('loader');
+    if (loader) loader.style.display = 'none';
+    document.body.classList.remove('loading');
+    onComplete();
+    return;
+  }
 
   const loader = document.getElementById('loader');
   const fill   = document.getElementById('loader-fill');
@@ -1206,6 +1222,12 @@ function initLoader(onComplete) {
    HERO ENTRY TIMELINE
 ═══════════════════════════════════════ */
 function initHeroEntry() {
+  if (!hasGSAP()) {
+    revealStaticContent();
+    runHeroCounters();
+    return;
+  }
+
   gsap.registerPlugin(ScrollTrigger);
   splitH1();
 
@@ -1272,6 +1294,10 @@ class TextScramble {
    SCROLL FEATURES (ScrollTrigger)
 ═══════════════════════════════════════ */
 function initScrollFeatures() {
+  if (!hasGSAP() || !hasScrollTrigger()) {
+    revealStaticContent();
+    return;
+  }
 
   // ── Purge CSS reveal so GSAP is sole animation authority ──
   // Disable the CSS transition on .reveal — GSAP handles everything
@@ -1383,6 +1409,7 @@ function initScrollFeatures() {
 ═══════════════════════════════════════ */
 function runCounter(el, ST) {
   const raw     = el.dataset.count;
+  if (!hasGSAP()) { el.textContent = raw; return; }
   const m       = raw.match(/^([\d.]+)(.*)/u);
   if (!m) return;
   const target  = parseFloat(m[1]);
@@ -1424,7 +1451,7 @@ function runHeroCounters() {
    MAGNETIC CARDS (GSAP enhanced)
 ═══════════════════════════════════════ */
 function initMagnetic() {
-  if (prefersReduced() || isMobile()) return;
+  if (prefersReduced() || isMobile() || !hasGSAP()) return;
   const MAX_TILT = 5.5;
 
   document.querySelectorAll('.cap-card').forEach(card => {
@@ -1461,7 +1488,7 @@ function initMagnetic() {
    MAGNETIC BUTTONS (subtle translate)
 ═══════════════════════════════════════ */
 function initMagneticBtns() {
-  if (prefersReduced() || isMobile()) return;
+  if (prefersReduced() || isMobile() || !hasGSAP()) return;
   document.querySelectorAll('.btn-primary,.btn-secondary').forEach(btn => {
     btn.addEventListener('mousemove', e => {
       const r  = btn.getBoundingClientRect();
