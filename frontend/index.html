@@ -53,25 +53,11 @@ body::before{
   display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0;
   pointer-events:all;
 }
-.loader-emblem{
-  width:72px;height:72px;margin-bottom:28px;
-  opacity:0;
-}
-.loader-label{
-  font-family:var(--f-data);font-size:8px;letter-spacing:.32em;text-transform:uppercase;
-  color:rgba(232,217,200,.25);margin-bottom:20px;opacity:0;
-}
-.loader-track{
-  width:180px;height:1px;background:rgba(232,217,200,.07);position:relative;overflow:hidden;
-}
-.loader-fill{
-  position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(232,217,200,.55),rgba(232,217,200,.3));
-  transform:scaleX(0);transform-origin:left;
-}
-.loader-pct{
-  font-family:var(--f-data);font-size:8px;letter-spacing:.18em;
-  color:rgba(232,217,200,.18);margin-top:10px;opacity:0;
-}
+.loader-emblem{width:72px;height:72px;margin-bottom:28px;opacity:0;}
+.loader-label{font-family:var(--f-data);font-size:8px;letter-spacing:.32em;text-transform:uppercase;color:rgba(232,217,200,.25);margin-bottom:20px;opacity:0;}
+.loader-track{width:180px;height:1px;background:rgba(232,217,200,.07);position:relative;overflow:hidden;}
+.loader-fill{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(232,217,200,.55),rgba(232,217,200,.3));transform:scaleX(0);transform-origin:left;}
+.loader-pct{font-family:var(--f-data);font-size:8px;letter-spacing:.18em;color:rgba(232,217,200,.18);margin-top:10px;opacity:0;}
 
 /* ══ SCROLL PROGRESS ══ */
 #scroll-progress{
@@ -81,53 +67,20 @@ body::before{
 }
 
 /* ══ CUSTOM CURSOR ══ */
-@media(pointer:fine){
-  body,a,button{cursor:none}
-}
-#cursor{
-  position:fixed;top:0;left:0;z-index:10000;pointer-events:none;
-  will-change:transform;
-}
-#c-dot{
-  position:absolute;width:4px;height:4px;
-  background:var(--ice);border-radius:50%;
-  transform:translate(-50%,-50%);
-  transition:transform .1s,background .2s,width .2s,height .2s;
-}
-#c-ring{
-  position:absolute;width:30px;height:30px;
-  border:1px solid rgba(232,217,200,.35);border-radius:50%;
-  transform:translate(-50%,-50%);
-  transition:width .25s var(--ease-out5),height .25s var(--ease-out5),
-             border-color .25s,opacity .25s;
-}
-#c-cross{
-  position:absolute;transform:translate(-50%,-50%);opacity:0;
-  transition:opacity .2s;
-}
-#c-cross::before,#c-cross::after{
-  content:'';position:absolute;background:rgba(232,217,200,.22);
-}
+@media(pointer:fine){body,a,button{cursor:none}}
+#cursor{position:fixed;top:0;left:0;z-index:10000;pointer-events:none;will-change:transform;}
+#c-dot{position:absolute;width:4px;height:4px;background:var(--ice);border-radius:50%;transform:translate(-50%,-50%);transition:transform .1s,background .2s,width .2s,height .2s;}
+#c-ring{position:absolute;width:30px;height:30px;border:1px solid rgba(232,217,200,.35);border-radius:50%;transform:translate(-50%,-50%);transition:width .25s var(--ease-out5),height .25s var(--ease-out5),border-color .25s,opacity .25s;}
+#c-cross{position:absolute;transform:translate(-50%,-50%);opacity:0;transition:opacity .2s;}
+#c-cross::before,#c-cross::after{content:'';position:absolute;background:rgba(232,217,200,.22);}
 #c-cross::before{width:36px;height:1px;top:0;left:-18px}
 #c-cross::after{width:1px;height:36px;left:0;top:-18px}
-#c-label{
-  position:absolute;left:18px;top:-6px;
-  font-family:var(--f-data);font-size:6.5px;letter-spacing:.22em;text-transform:uppercase;
-  color:rgba(232,217,200,.2);white-space:nowrap;
-  opacity:0;transition:opacity .25s;pointer-events:none;
-}
-/* Cursor states */
-body.cur-hover #c-ring{
-  width:44px;height:44px;border-color:rgba(232,217,200,.6);
-}
+#c-label{position:absolute;left:18px;top:-6px;font-family:var(--f-data);font-size:6.5px;letter-spacing:.22em;text-transform:uppercase;color:rgba(232,217,200,.2);white-space:nowrap;opacity:0;transition:opacity .25s;pointer-events:none;}
+body.cur-hover #c-ring{width:44px;height:44px;border-color:rgba(232,217,200,.6);}
 body.cur-hover #c-cross{opacity:1}
 body.cur-hover #c-label{opacity:.7}
-body.cur-btn #c-dot{
-  width:8px;height:8px;background:var(--ice);
-}
-body.cur-btn #c-ring{
-  width:52px;height:52px;border-color:rgba(14,165,233,.7);
-}
+body.cur-btn #c-dot{width:8px;height:8px;background:var(--ice);}
+body.cur-btn #c-ring{width:52px;height:52px;border-color:rgba(14,165,233,.7);}
 body.cur-drag #c-ring{border-style:dashed}
 
 /* ══ NAV ══ */
@@ -185,25 +138,13 @@ body.cur-drag #c-ring{border-style:dashed}
 }
 #hero-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0}
 
-/* Radar sweep overlay */
-.hero-radar{
-  position:absolute;inset:0;pointer-events:none;z-index:2;
-  display:flex;align-items:center;justify-content:center;
-}
-.hero-radar-ring{
-  position:absolute;border-radius:50%;border:1px solid rgba(14,165,233,.06);
-}
+.hero-radar{position:absolute;inset:0;pointer-events:none;z-index:2;display:flex;align-items:center;justify-content:center;}
+.hero-radar-ring{position:absolute;border-radius:50%;border:1px solid rgba(14,165,233,.06);}
 .hero-radar-ring:nth-child(1){width:320px;height:320px}
 .hero-radar-ring:nth-child(2){width:520px;height:520px}
 .hero-radar-ring:nth-child(3){width:720px;height:720px}
-.hero-radar-sweep{
-  position:absolute;width:720px;height:720px;border-radius:50%;overflow:hidden;
-  animation:radarSpin 9s linear infinite;
-}
-.hero-radar-sweep::after{
-  content:'';position:absolute;inset:0;border-radius:50%;
-  background:conic-gradient(transparent 0deg,transparent 280deg,rgba(14,165,233,.04) 330deg,rgba(14,165,233,.01) 360deg);
-}
+.hero-radar-sweep{position:absolute;width:720px;height:720px;border-radius:50%;overflow:hidden;animation:radarSpin 9s linear infinite;}
+.hero-radar-sweep::after{content:'';position:absolute;inset:0;border-radius:50%;background:conic-gradient(transparent 0deg,transparent 280deg,rgba(14,165,233,.04) 330deg,rgba(14,165,233,.01) 360deg);}
 
 .hero-scanline{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(232,217,200,.06) 30%,rgba(232,217,200,.1) 50%,rgba(232,217,200,.06) 80%,transparent);pointer-events:none;z-index:3;animation:scanDown 11s linear infinite;will-change:transform}
 .hero-scanlines{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:.018;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(0,0,0,.03) 3px,rgba(0,0,0,.03) 4px)}
@@ -225,7 +166,6 @@ body.cur-drag #c-ring{border-style:dashed}
 .h1-line{display:block;overflow:hidden}
 .h1-line-inner{display:block}
 .h1-stroke{color:transparent;-webkit-text-stroke:1.5px rgba(232,217,200,.4);text-shadow:0 0 60px rgba(232,217,200,.08)}
-/* Individual char spans injected by JS */
 .h1-char{display:inline-block;transform:translateY(115%)}
 .h1-space{display:inline-block;width:.3em}
 
@@ -390,9 +330,9 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 .footer-links a:hover{color:rgba(232,217,200,.5)}
 .footer-meta{font-family:var(--f-data);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right}
 
-/* ══ REVEAL ══ */
-.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease-out5),transform .7s var(--ease-out5)}
-.reveal.visible{opacity:1;transform:translateY(0)}
+/* ══ REVEAL — default visible; GSAP overrides ══ */
+/* Elements are visible by default in CSS so they NEVER get stuck invisible if JS fails */
+.reveal{opacity:1;transform:none}
 
 /* ══ KEYFRAMES ══ */
 @keyframes radarSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
@@ -405,7 +345,7 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 @keyframes ringRotate{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @keyframes scanDown{0%{transform:translateY(0);opacity:0}3%{opacity:1}97%{opacity:1}100%{transform:translateY(100vh);opacity:0}}
 @keyframes glitch{0%{clip-path:inset(0 0 95% 0);transform:translate(-2px,0);color:var(--ice)}15%{clip-path:inset(30% 0 50% 0);transform:translate(2px,0)}30%{clip-path:inset(75% 0 5% 0);transform:translate(-1px,0)}45%{clip-path:inset(0);transform:translate(0);color:var(--ice)}100%{clip-path:inset(0);transform:translate(0);color:var(--ice)}}
-@keyframes cursorPing{0%{transform:translate(-50%,-50%) scale(1);opacity:.8}100%{transform:translate(-50%,-50%) scale(2.8);opacity:0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
 
 /* ══ RESPONSIVE ══ */
 @media(max-width:900px){
@@ -443,6 +383,7 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
   body{cursor:auto!important}
   a,button{cursor:pointer!important}
   #hero-canvas{opacity:1!important}
+  .reveal{opacity:1!important;transform:none!important}
 }
 </style>
 </head>
@@ -514,7 +455,6 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 <section class="hero" id="hero">
   <canvas id="hero-canvas" aria-hidden="true"></canvas>
 
-  <!-- Radar overlay -->
   <div class="hero-radar" aria-hidden="true">
     <div class="hero-radar-ring"></div>
     <div class="hero-radar-ring"></div>
@@ -760,8 +700,8 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 /* ═══════════════════════════════════════
    UTILS
 ═══════════════════════════════════════ */
-const isMobile = () => window.matchMedia('(max-width:768px)').matches;
-const prefersReduced = () => window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const isMobile      = () => window.matchMedia('(max-width:768px)').matches;
+const prefersReduced= () => window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 const hasFinePonter = () => window.matchMedia('(pointer:fine)').matches;
 
 /* ═══════════════════════════════════════
@@ -772,77 +712,45 @@ function initCursor() {
     document.getElementById('cursor').style.display = 'none';
     return;
   }
-
-  const dot   = document.getElementById('c-dot');
-  const ring  = document.getElementById('c-ring');
+  const dot    = document.getElementById('c-dot');
+  const ring   = document.getElementById('c-ring');
   const cursor = document.getElementById('cursor');
+  let mx = -200, my = -200, rx = -200, ry = -200, pingActive = false;
 
-  let mx = -200, my = -200;   // exact mouse
-  let rx = -200, ry = -200;   // ring lerp
-  let pingActive = false;
-
-  // Inject ping element
   const ping = document.createElement('div');
-  ping.style.cssText = `
-    position:absolute;width:30px;height:30px;border-radius:50%;
-    border:1px solid rgba(232,217,200,.5);transform:translate(-50%,-50%) scale(1);
-    opacity:0;pointer-events:none;
-  `;
+  ping.style.cssText = `position:absolute;width:30px;height:30px;border-radius:50%;border:1px solid rgba(232,217,200,.5);transform:translate(-50%,-50%) scale(1);opacity:0;pointer-events:none;`;
   cursor.appendChild(ping);
 
   window.addEventListener('mousemove', e => {
     mx = e.clientX; my = e.clientY;
-    dot.style.left  = mx + 'px';
-    dot.style.top   = my + 'px';
+    dot.style.left = mx + 'px'; dot.style.top = my + 'px';
   }, { passive: true });
 
-  // Click ping
   window.addEventListener('click', () => {
-    if (pingActive) return;
-    pingActive = true;
-    ping.style.left  = mx + 'px';
-    ping.style.top   = my + 'px';
+    if (pingActive) return; pingActive = true;
+    ping.style.left = mx + 'px'; ping.style.top = my + 'px';
     ping.style.width = '30px'; ping.style.height = '30px';
-    ping.style.opacity = '.8';
-    ping.style.transition = 'none';
+    ping.style.opacity = '.8'; ping.style.transition = 'none';
     requestAnimationFrame(() => {
       ping.style.transition = 'transform .55s cubic-bezier(.16,1,.3,1), opacity .55s ease';
-      ping.style.transform  = 'translate(-50%,-50%) scale(2.8)';
-      ping.style.opacity    = '0';
-      setTimeout(() => {
-        ping.style.transform = 'translate(-50%,-50%) scale(1)';
-        pingActive = false;
-      }, 560);
+      ping.style.transform = 'translate(-50%,-50%) scale(2.8)'; ping.style.opacity = '0';
+      setTimeout(() => { ping.style.transform = 'translate(-50%,-50%) scale(1)'; pingActive = false; }, 560);
     });
   });
 
-  // Hover states
   document.querySelectorAll('a').forEach(el => {
-    el.addEventListener('mouseenter', () => {
-      document.body.classList.add('cur-hover');
-      document.getElementById('c-label').textContent = 'NAVIGATE';
-    });
-    el.addEventListener('mouseleave', () => {
-      document.body.classList.remove('cur-hover');
-    });
+    el.addEventListener('mouseenter', () => { document.body.classList.add('cur-hover'); document.getElementById('c-label').textContent = 'NAVIGATE'; });
+    el.addEventListener('mouseleave', () => document.body.classList.remove('cur-hover'));
   });
   document.querySelectorAll('button').forEach(el => {
-    el.addEventListener('mouseenter', () => {
-      document.body.classList.add('cur-btn');
-      document.getElementById('c-label').textContent = 'ACTION';
-    });
-    el.addEventListener('mouseleave', () => {
-      document.body.classList.remove('cur-btn');
-    });
+    el.addEventListener('mouseenter', () => { document.body.classList.add('cur-btn'); document.getElementById('c-label').textContent = 'ACTION'; });
+    el.addEventListener('mouseleave', () => document.body.classList.remove('cur-btn'));
   });
 
-  // RAF loop for ring lerp
   (function loopCursor() {
     requestAnimationFrame(loopCursor);
-    rx += (mx - rx) * 0.115;
-    ry += (my - ry) * 0.115;
-    ring.style.left = rx + 'px';
-    ring.style.top  = ry + 'px';
+    rx += (mx - rx) * 0.115; ry += (my - ry) * 0.115;
+    ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
   })();
 }
 
@@ -851,199 +759,84 @@ function initCursor() {
 ═══════════════════════════════════════ */
 class IntelGlobe {
   constructor() {
-    this.canvas  = document.getElementById('hero-canvas');
-    this.hero    = this.canvas.parentElement;
-    this.W       = this.hero.offsetWidth;
-    this.H       = this.hero.offsetHeight;
-    this.mouse   = { x: 0, y: 0 };
-    this.autoY   = 0;
-    this.curR    = { x: 0.15, y: 0 };
-    this.tgtR    = { x: 0.15, y: 0 };
-    this.time    = 0;
-    this.visible = true;
-    this.hotspotMeshes = [];
-    this.satAngle = 0;
-    this.trailVerts = [];
-
-    this._setup();
-    this._buildGlobe();
-    this._buildAtmosphere();
-    this._buildArcs();
-    this._buildHotspots();
-    this._buildOrbitals();
-    this._bindEvents();
-    this._render();
+    this.canvas = document.getElementById('hero-canvas');
+    this.hero   = this.canvas.parentElement;
+    this.W = this.hero.offsetWidth; this.H = this.hero.offsetHeight;
+    this.mouse = { x: 0, y: 0 }; this.autoY = 0;
+    this.curR = { x: 0.15, y: 0 }; this.tgtR = { x: 0.15, y: 0 };
+    this.time = 0; this.visible = true;
+    this.hotspotMeshes = []; this.satAngle = 0; this.trailVerts = [];
+    this._setup(); this._buildGlobe(); this._buildAtmosphere();
+    this._buildArcs(); this._buildHotspots(); this._buildOrbitals();
+    this._bindEvents(); this._render();
   }
-
   _setup() {
     this.scene  = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(38, this.W / this.H, 0.1, 100);
-    this.camera.position.set(0, 0.08, 3.6);
-    this.camera.lookAt(0, 0, 0);
-
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      alpha: true,
-      antialias: !isMobile(),
-      powerPreference: 'high-performance'
-    });
+    this.camera.position.set(0, 0.08, 3.6); this.camera.lookAt(0, 0, 0);
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, alpha: true, antialias: !isMobile(), powerPreference: 'high-performance' });
     this.renderer.setSize(this.W, this.H);
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.setClearColor(0x000000, 0);
-
-    this.globeGroup = new THREE.Group();
-    this.scene.add(this.globeGroup);
+    this.globeGroup = new THREE.Group(); this.scene.add(this.globeGroup);
   }
-
   _ll(lat, lon, r = 1.005) {
-    const ph = (90 - lat) * Math.PI / 180;
-    const th = (lon + 180) * Math.PI / 180;
-    return new THREE.Vector3(
-      -r * Math.sin(ph) * Math.cos(th),
-       r * Math.cos(ph),
-       r * Math.sin(ph) * Math.sin(th)
-    );
+    const ph = (90 - lat) * Math.PI / 180; const th = (lon + 180) * Math.PI / 180;
+    return new THREE.Vector3(-r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th));
   }
-
   _buildGlobe() {
-    // Opaque inner core
-    this.globeGroup.add(new THREE.Mesh(
-      new THREE.SphereGeometry(0.978, 48, 32),
-      new THREE.MeshBasicMaterial({ color: 0x060a0e })
-    ));
-
-    // Wireframe hex-ish overlay
-    this.globeGroup.add(new THREE.Mesh(
-      new THREE.SphereGeometry(1.0, 20, 14),
-      new THREE.MeshBasicMaterial({ color: 0x1a2e3e, wireframe: true, transparent: true, opacity: 0.065 })
-    ));
-
-    // Fibonacci point cloud
-    const N   = isMobile() ? 280 : 520;
-    const phi = Math.PI * (3 - Math.sqrt(5));
-    const pos = [];
+    this.globeGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.978, 48, 32), new THREE.MeshBasicMaterial({ color: 0x060a0e })));
+    this.globeGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.0, 20, 14), new THREE.MeshBasicMaterial({ color: 0x1a2e3e, wireframe: true, transparent: true, opacity: 0.065 })));
+    const N = isMobile() ? 280 : 520; const phi = Math.PI * (3 - Math.sqrt(5)); const pos = [];
     for (let i = 0; i < N; i++) {
-      const y = 1 - (i / (N - 1)) * 2;
-      const r = Math.sqrt(Math.max(0, 1 - y * y));
-      const a = phi * i;
+      const y = 1 - (i / (N - 1)) * 2; const r = Math.sqrt(Math.max(0, 1 - y * y)); const a = phi * i;
       pos.push(r * Math.cos(a), y, r * Math.sin(a));
     }
-    const ptGeo = new THREE.BufferGeometry();
-    ptGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    this.ptMat = new THREE.PointsMaterial({
-      color: 0xd4c9b8, size: isMobile() ? 0.009 : 0.006,
-      transparent: true, opacity: 0.42, sizeAttenuation: true
-    });
+    const ptGeo = new THREE.BufferGeometry(); ptGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    this.ptMat = new THREE.PointsMaterial({ color: 0xd4c9b8, size: isMobile() ? 0.009 : 0.006, transparent: true, opacity: 0.42, sizeAttenuation: true });
     this.globeGroup.add(new THREE.Points(ptGeo, this.ptMat));
   }
-
   _buildAtmosphere() {
-    // Inner haze
-    this.scene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(1.045, 32, 20),
-      new THREE.MeshBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.045, side: THREE.BackSide })
-    ));
-    // Outer haze
+    this.scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.045, 32, 20), new THREE.MeshBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.045, side: THREE.BackSide })));
     this.atmoMat = new THREE.MeshBasicMaterial({ color: 0x0a78a4, transparent: true, opacity: 0.022, side: THREE.BackSide });
     this.scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.11, 32, 20), this.atmoMat));
   }
-
   _buildArcs() {
-    const cities = [
-      [40.7, -74.0],  [51.5,  -0.1],  [35.7, 139.8],
-      [28.6,  77.2],  [-23.5,-46.6],  [1.3,  103.8],
-      [25.2,  55.3],  [39.9, 116.4],  [-33.9, 18.4],
-      [55.7,  37.6],  [19.4, -99.1],  [30.1,  31.2],
-    ];
-    const conns = [
-      [0,1],[1,6],[1,9],[0,4],[0,10],[2,7],[2,5],
-      [3,6],[3,5],[3,11],[5,8],[6,11],[7,9],[1,3],[4,8],[9,2]
-    ];
-
-    conns.forEach(([i, j]) => {
-      const a = this._ll(...cities[i]);
-      const b = this._ll(...cities[j]);
+    const cities = [[40.7,-74.0],[51.5,-0.1],[35.7,139.8],[28.6,77.2],[-23.5,-46.6],[1.3,103.8],[25.2,55.3],[39.9,116.4],[-33.9,18.4],[55.7,37.6],[19.4,-99.1],[30.1,31.2]];
+    const conns  = [[0,1],[1,6],[1,9],[0,4],[0,10],[2,7],[2,5],[3,6],[3,5],[3,11],[5,8],[6,11],[7,9],[1,3],[4,8],[9,2]];
+    conns.forEach(([i,j]) => {
+      const a = this._ll(...cities[i]); const b = this._ll(...cities[j]);
       const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
-      const dist = a.distanceTo(b);
-      mid.normalize().multiplyScalar(1 + 0.22 + dist * 0.1);
-
+      mid.normalize().multiplyScalar(1 + 0.22 + a.distanceTo(b) * 0.1);
       const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
-      const geo   = new THREE.BufferGeometry().setFromPoints(curve.getPoints(55));
-      this.globeGroup.add(new THREE.Line(geo,
-        new THREE.LineBasicMaterial({ color: 0x1a90cc, transparent: true, opacity: 0.22 })
-      ));
+      this.globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(55)), new THREE.LineBasicMaterial({ color: 0x1a90cc, transparent: true, opacity: 0.22 })));
     });
   }
-
   _buildHotspots() {
-    const locs = [
-      [40.7,-74.0],[51.5,-0.1],[28.6,77.2],
-      [25.2,55.3],[1.3,103.8],[39.9,116.4],
-    ];
-    locs.forEach(([lat,lon], idx) => {
+    [[40.7,-74.0],[51.5,-0.1],[28.6,77.2],[25.2,55.3],[1.3,103.8],[39.9,116.4]].forEach(([lat,lon],idx) => {
       const pos = this._ll(lat, lon, 1.016);
-
-      // Dot
-      const dot = new THREE.Mesh(
-        new THREE.SphereGeometry(0.007 + Math.random() * 0.005, 8, 8),
-        new THREE.MeshBasicMaterial({ color: idx < 3 ? 0xe8d9c8 : 0x0ea5e9 })
-      );
-      dot.position.copy(pos);
-      this.globeGroup.add(dot);
-
-      // Pulse ring
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xe8d9c8, transparent: true, opacity: 0.65, side: THREE.DoubleSide
-      });
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.007 + Math.random() * 0.005, 8, 8), new THREE.MeshBasicMaterial({ color: idx < 3 ? 0xe8d9c8 : 0x0ea5e9 }));
+      dot.position.copy(pos); this.globeGroup.add(dot);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xe8d9c8, transparent: true, opacity: 0.65, side: THREE.DoubleSide });
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.016, 0.02, 32), ringMat);
-      ring.position.copy(pos);
-      // Face outward from sphere center
-      ring.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 0, 1),
-        pos.clone().normalize()
-      );
-      this.globeGroup.add(ring);
-      this.hotspotMeshes.push({ ring, ringMat, phase: idx * 0.9 });
+      ring.position.copy(pos); ring.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), pos.clone().normalize());
+      this.globeGroup.add(ring); this.hotspotMeshes.push({ ring, ringMat, phase: idx * 0.9 });
     });
   }
-
   _buildOrbitals() {
-    // Two decorative orbit rings (line loops)
-    [[1.3, 22], [1.58, -18]].forEach(([r, tiltDeg]) => {
-      const pts = [];
-      for (let i = 0; i <= 128; i++) {
-        const a = (i / 128) * Math.PI * 2;
-        pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
-      }
-      const ring = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: 0x8a9bad, transparent: true, opacity: 0.08 })
-      );
-      ring.rotation.x = tiltDeg * Math.PI / 180;
-      this.scene.add(ring);
+    [[1.3, 22],[1.58,-18]].forEach(([r, tiltDeg]) => {
+      const pts = []; for (let i = 0; i <= 128; i++) { const a = (i/128)*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r)); }
+      const ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x8a9bad, transparent: true, opacity: 0.08 }));
+      ring.rotation.x = tiltDeg * Math.PI / 180; this.scene.add(ring);
     });
-
-    // Satellite
-    this.sat = new THREE.Mesh(
-      new THREE.SphereGeometry(0.014, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0x00b4e6, transparent: true, opacity: 0.85 })
-    );
+    this.sat = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00b4e6, transparent: true, opacity: 0.85 }));
     this.scene.add(this.sat);
-
-    // Trail (line with positions updated each frame)
-    const TRAIL = 22;
-    const trailGeo = new THREE.BufferGeometry();
-    const trailPos = new Float32Array(TRAIL * 3);
+    const TRAIL = 22; const trailGeo = new THREE.BufferGeometry(); const trailPos = new Float32Array(TRAIL * 3);
     trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
-    this.trailLine = new THREE.Line(trailGeo,
-      new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.28 })
-    );
-    this.scene.add(this.trailLine);
-    this.trailPos  = trailPos;
-    this.trailLen  = TRAIL;
+    this.trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.28 }));
+    this.scene.add(this.trailLine); this.trailPos = trailPos; this.trailLen = TRAIL;
     for (let i = 0; i < TRAIL; i++) this.trailVerts.push(new THREE.Vector3());
   }
-
   _bindEvents() {
     this.hero.addEventListener('mousemove', e => {
       const r = this.hero.getBoundingClientRect();
@@ -1051,71 +844,36 @@ class IntelGlobe {
       this.mouse.y = (e.clientY - r.top)  / r.height - 0.5;
     }, { passive: true });
     this.hero.addEventListener('mouseleave', () => { this.mouse.x = 0; this.mouse.y = 0; });
-
     new IntersectionObserver(([e]) => { this.visible = e.isIntersecting; }).observe(this.hero);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.lastT = performance.now(); });
-
-    let resT;
-    window.addEventListener('resize', () => {
-      clearTimeout(resT);
-      resT = setTimeout(() => {
+    let resT; window.addEventListener('resize', () => {
+      clearTimeout(resT); resT = setTimeout(() => {
         this.W = this.hero.offsetWidth; this.H = this.hero.offsetHeight;
-        this.camera.aspect = this.W / this.H;
-        this.camera.updateProjectionMatrix();
+        this.camera.aspect = this.W / this.H; this.camera.updateProjectionMatrix();
         this.renderer.setSize(this.W, this.H);
       }, 140);
     }, { passive: true });
   }
-
   _render(now = 0) {
     requestAnimationFrame(t => this._render(t));
     if (!this.visible || document.hidden) return;
-
-    const dt   = Math.min(now - (this.lastT || now), 50);
-    this.lastT = now;
-    this.time  = now * 0.001;
-
+    const dt = Math.min(now - (this.lastT || now), 50); this.lastT = now; this.time = now * 0.001;
     this.autoY += 0.00085;
-    this.tgtR.x = 0.15 + this.mouse.y * 0.28;
-    this.tgtR.y = this.autoY + this.mouse.x * 0.22;
-    this.curR.x += (this.tgtR.x - this.curR.x) * 0.032;
-    this.curR.y += (this.tgtR.y - this.curR.y) * 0.018;
-
-    this.globeGroup.rotation.x = this.curR.x;
-    this.globeGroup.rotation.y = this.curR.y;
-
-    // Hotspot pulse
+    this.tgtR.x = 0.15 + this.mouse.y * 0.28; this.tgtR.y = this.autoY + this.mouse.x * 0.22;
+    this.curR.x += (this.tgtR.x - this.curR.x) * 0.032; this.curR.y += (this.tgtR.y - this.curR.y) * 0.018;
+    this.globeGroup.rotation.x = this.curR.x; this.globeGroup.rotation.y = this.curR.y;
     this.hotspotMeshes.forEach(({ ring, ringMat, phase }) => {
       const p = Math.sin(this.time * 2.1 + phase) * 0.5 + 0.5;
-      ringMat.opacity = 0.22 + p * 0.62;
-      ring.scale.setScalar(1 + p * 0.55);
+      ringMat.opacity = 0.22 + p * 0.62; ring.scale.setScalar(1 + p * 0.55);
     });
-
-    // Atmosphere breathe
     if (this.atmoMat) this.atmoMat.opacity = 0.018 + Math.sin(this.time * 0.6) * 0.007;
-
-    // Satellite orbit (orbit ring 2: r=1.58, tilt=-18°)
-    this.satAngle += 0.0058;
-    const sa = this.satAngle, sR = 1.58, st = -18 * Math.PI / 180;
-    this.sat.position.set(
-      Math.cos(sa) * sR,
-     -Math.sin(sa) * sR * Math.sin(-st),
-      Math.sin(sa) * sR * Math.cos(-st)
-    );
-
-    // Trail
+    this.satAngle += 0.0058; const sa = this.satAngle, sR = 1.58, st = -18 * Math.PI / 180;
+    this.sat.position.set(Math.cos(sa)*sR, -Math.sin(sa)*sR*Math.sin(-st), Math.sin(sa)*sR*Math.cos(-st));
     for (let i = this.trailLen - 1; i > 0; i--) this.trailVerts[i].copy(this.trailVerts[i-1]);
     this.trailVerts[0].copy(this.sat.position);
-    for (let i = 0; i < this.trailLen; i++) {
-      this.trailPos[i*3]   = this.trailVerts[i].x;
-      this.trailPos[i*3+1] = this.trailVerts[i].y;
-      this.trailPos[i*3+2] = this.trailVerts[i].z;
-    }
+    for (let i = 0; i < this.trailLen; i++) { this.trailPos[i*3] = this.trailVerts[i].x; this.trailPos[i*3+1] = this.trailVerts[i].y; this.trailPos[i*3+2] = this.trailVerts[i].z; }
     this.trailLine.geometry.attributes.position.needsUpdate = true;
-
-    // Point cloud breathe
     this.ptMat.opacity = 0.38 + Math.sin(this.time * 0.7) * 0.07;
-
     this.renderer.render(this.scene, this.camera);
   }
 }
@@ -1126,15 +884,12 @@ class IntelGlobe {
 function splitH1() {
   document.querySelectorAll('.h1-line-inner').forEach(el => {
     const isStroke = el.classList.contains('h1-stroke');
-    const text = el.textContent.trim();
-    el.innerHTML = text.split('').map(ch => {
+    el.innerHTML = el.textContent.trim().split('').map(ch => {
       if (ch === ' ') return '<span class="h1-space"> </span>';
       const cls = isStroke ? 'h1-char h1-stroke-char' : 'h1-char';
       return `<span class="${cls}">${ch}</span>`;
     }).join('');
   });
-
-  // Apply stroke to char spans inside stroke line
   document.querySelectorAll('.h1-stroke-char').forEach(span => {
     span.style.cssText = 'color:transparent;-webkit-text-stroke:1.5px rgba(232,217,200,.4)';
   });
@@ -1152,19 +907,13 @@ function initLoader(onComplete) {
   const pct    = document.getElementById('loader-pct');
   const logo   = document.getElementById('loader-logo');
 
-  // Build system strings
-  const lines = [
-    'PREXUS INTELLIGENCE PLATFORM',
-    'INITIALIZING PIPELINE LAYERS',
-    'CONNECTING SATELLITE FEEDS',
-    'SYSTEM READY',
-  ];
+  const lines = ['PREXUS INTELLIGENCE PLATFORM','INITIALIZING PIPELINE LAYERS','CONNECTING SATELLITE FEEDS','SYSTEM READY'];
   let lineIdx = 0;
 
   const tl = gsap.timeline({
     onComplete() {
       gsap.to(loader, {
-        opacity: 0, duration: 0.45, ease: 'power2.in',
+        opacity: 0, duration: 0.5, ease: 'power2.in',
         onComplete() {
           loader.style.display = 'none';
           document.body.classList.remove('loading');
@@ -1174,30 +923,24 @@ function initLoader(onComplete) {
     }
   });
 
-  // Logo + label fade in
-  tl.to(logo,  { opacity: 1, y: 0,  duration: 0.55, ease: 'power3.out' }, 0)
+  tl.to(logo,  { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out' }, 0)
     .to(label, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.25)
     .to(pct,   { opacity: 1, duration: 0.3 }, 0.3);
 
-  // Progress bar + counter
   const counter = { v: 0 };
   tl.to(fill,    { scaleX: 1, duration: 1.35, ease: 'power2.inOut' }, 0.35);
-  tl.to(counter, {
-    v: 100, duration: 1.35, ease: 'power2.inOut',
+  tl.to(counter, { v: 100, duration: 1.35, ease: 'power2.inOut',
     onUpdate() { pct.textContent = Math.floor(counter.v) + '%'; },
     onComplete() { pct.textContent = '100%'; }
   }, 0.35);
 
-  // Cycle labels
   const cycleLabel = () => {
     if (lineIdx >= lines.length) return;
-    gsap.to(label, { opacity: 0, duration: 0.18, ease: 'power1.in',
-      onComplete() {
-        label.textContent = lines[lineIdx++];
-        gsap.to(label, { opacity: 1, duration: 0.22, ease: 'power1.out' });
-        if (lineIdx < lines.length) setTimeout(cycleLabel, 400);
-      }
-    });
+    gsap.to(label, { opacity: 0, duration: 0.18, ease: 'power1.in', onComplete() {
+      label.textContent = lines[lineIdx++];
+      gsap.to(label, { opacity: 1, duration: 0.22, ease: 'power1.out' });
+      if (lineIdx < lines.length) setTimeout(cycleLabel, 400);
+    }});
   };
   setTimeout(cycleLabel, 300);
 }
@@ -1209,154 +952,155 @@ function initHeroEntry() {
   gsap.registerPlugin(ScrollTrigger);
   splitH1();
 
-  // Set initial GSAP states
-  gsap.set('.hero-logo-wrap', { opacity: 0, scale: 0.88 });
-  gsap.set('.hero-eyebrow',   { opacity: 0, y: 18 });
-  gsap.set('.h1-char',        { y: '115%' });
-  gsap.set('.hero-body',      { opacity: 0, y: 20 });
+  gsap.set('.hero-logo-wrap',   { opacity: 0, scale: 0.88 });
+  gsap.set('.hero-eyebrow',     { opacity: 0, y: 18 });
+  gsap.set('.h1-char',          { y: '115%' });
+  gsap.set('.hero-body',        { opacity: 0, y: 20 });
   gsap.set('.hero-actions > *', { opacity: 0, y: 14 });
-  gsap.set('.hero-tagline',   { opacity: 0 });
-  gsap.set('.hero-stat',      { opacity: 0, y: 24 });
+  gsap.set('.hero-tagline',     { opacity: 0 });
+  gsap.set('.hero-stat',        { opacity: 0, y: 24 });
 
-  // Nav slides down after loader
   gsap.from('.nav', { y: -54, opacity: 0, duration: 0.65, ease: 'power3.out', delay: 0.1 });
 
   const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
+  tl.to('#hero-canvas',        { opacity: 1, duration: 1.6, ease: 'power2.out' }, 0)
+    .to('.hero-logo-wrap',     { opacity: 1, scale: 1, duration: 1.1 }, 0.05)
+    .to('.hero-eyebrow',       { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.55)
+    .to('.h1-char',            { y: '0%', duration: 0.78, stagger: { each: 0.022, from: 'start' } }, 0.72)
+    .to('.hero-body',          { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 1.0)
+    .to('.hero-actions > *',   { opacity: 1, y: 0, duration: 0.65, stagger: 0.1, ease: 'power3.out' }, 1.15)
+    .to('.hero-tagline',       { opacity: 1, duration: 0.55, ease: 'power2.out' }, 1.28)
+    .to('.hero-stat',          { opacity: 1, y: 0, duration: 0.55, stagger: 0.07, ease: 'power3.out' }, 1.35)
+    .add(() => runHeroCounters(), 1.7);
 
-  tl.to('#hero-canvas', { opacity: 1, duration: 1.6, ease: 'power2.out' }, 0)
-    .to('.hero-logo-wrap', { opacity: 1, scale: 1, duration: 1.1 }, 0.05)
-    .to('.hero-eyebrow',   { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.55)
-    .to('.h1-char', {
-      y: '0%', duration: 0.78, stagger: { each: 0.022, from: 'start' }
-    }, 0.72)
-    .to('.hero-body',  { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 1.0)
-    .to('.hero-actions > *', { opacity: 1, y: 0, duration: 0.65, stagger: 0.1, ease: 'power3.out' }, 1.15)
-    .to('.hero-tagline',  { opacity: 1, duration: 0.55, ease: 'power2.out' }, 1.28)
-    .to('.hero-stat', { opacity: 1, y: 0, duration: 0.55, stagger: 0.07, ease: 'power3.out' }, 1.35)
-    .add(() => runHeroCounters(), 1.7); // Fire hero counters after stats have animated in
-
-  initScrollFeatures();
+  // Init scroll features AFTER hero is in place, then do a full refresh
+  tl.add(() => {
+    initScrollFeatures();
+    // Double-refresh: immediate + after fonts/images settle
+    ScrollTrigger.refresh();
+    setTimeout(() => ScrollTrigger.refresh(), 400);
+  }, 1.5);
 }
 
 /* ═══════════════════════════════════════
    TEXT SCRAMBLE
 ═══════════════════════════════════════ */
 class TextScramble {
-  constructor(el) {
-    this.el    = el;
-    this.orig  = el.textContent;
-    this.chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·/';
-    this.raf   = null;
-  }
+  constructor(el) { this.el = el; this.orig = el.textContent; this.chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·/'; this.raf = null; }
   run() {
-    const len = this.orig.length;
-    let frame = 0;
-    const totalFrames = len * 2.2;
+    const len = this.orig.length; let frame = 0; const totalFrames = len * 2.2;
     const tick = () => {
       this.el.textContent = this.orig.split('').map((ch, i) => {
         if (ch === ' ') return ' ';
-        const reveal = frame / totalFrames;
-        if (i / len < reveal) return ch;
+        if (i / len < frame / totalFrames) return ch;
         return this.chars[Math.floor(Math.random() * this.chars.length)];
       }).join('');
-      frame++;
-      if (frame <= totalFrames + 4) this.raf = requestAnimationFrame(tick);
+      frame++; if (frame <= totalFrames + 4) this.raf = requestAnimationFrame(tick);
       else this.el.textContent = this.orig;
     };
-    cancelAnimationFrame(this.raf);
-    tick();
+    cancelAnimationFrame(this.raf); tick();
   }
 }
 
 /* ═══════════════════════════════════════
-   SCROLL FEATURES (ScrollTrigger)
+   SCROLL FEATURES  ← CORE FIX
 ═══════════════════════════════════════ */
 function initScrollFeatures() {
 
-  // ── Purge CSS reveal so GSAP is sole animation authority ──
-  // Disable the CSS transition on .reveal — GSAP handles everything
-  const revealStyle = document.createElement('style');
-  revealStyle.textContent = '.reveal{transition:none!important}';
-  document.head.appendChild(revealStyle);
-
-  // Set initial state for ALL .reveal elements via GSAP
-  gsap.set('.reveal', { opacity: 0, y: 22, force3D: true });
-
-  // GSAP-dedicated elements: clear .reveal initial state (GSAP from() handles it)
-  const managed = '.cap-card,.need-card,.module-card,.layer-item,.brief-fact';
-  gsap.set(managed, { clearProps: 'opacity,transform' });
-
-  // ── Scroll progress bar ──
+  /* ── Scroll progress bar ── */
   const prog = document.getElementById('scroll-progress');
   ScrollTrigger.create({
     start: 'top top', end: 'bottom bottom',
     onUpdate(self) { prog.style.transform = `scaleX(${self.progress})`; }
   });
 
-  // ── Generic reveals (.reveal elements not handled specifically) ──
-  document.querySelectorAll('.reveal').forEach(el => {
-    // Skip elements that have dedicated GSAP animations
-    if (el.matches(managed)) return;
-    gsap.to(el, {
-      scrollTrigger: { trigger: el, start: 'top 88%', once: true },
-      opacity: 1, y: 0, duration: 0.7, ease: 'power3.out'
-    });
-  });
+  /* ────────────────────────────────────────────
+     REVEAL HELPER
+     Uses gsap.fromTo so the end-state is ALWAYS
+     opacity:1 / y:0 — even if trigger misfires.
+  ──────────────────────────────────────────── */
+  function revealFrom(targets, fromVars, extraVars = {}) {
+    const toVars = Object.assign({ opacity: 1, y: 0, x: 0, rotateX: 0, scale: 1, duration: 0.75, ease: 'power3.out' }, extraVars);
+    const from   = Object.assign({ opacity: 0, y: 28 }, fromVars);
+    gsap.fromTo(targets, from, toVars);
+  }
 
-  // ── Section eyebrow scramble ──
+  /* ── Section eyebrow scramble ── */
   document.querySelectorAll('.section-eyebrow').forEach(el => {
     const sc = new TextScramble(el);
-    ScrollTrigger.create({
-      trigger: el, start: 'top 88%', once: true,
-      onEnter() { sc.run(); }
-    });
+    ScrollTrigger.create({ trigger: el, start: 'top bottom', once: true, onEnter() { sc.run(); } });
   });
 
-  // ── Section h2 slide from left ──
+  /* ── Section h2 slide ── */
   gsap.utils.toArray('.section-h2').forEach(h => {
-    gsap.from(h, {
-      scrollTrigger: { trigger: h, start: 'top 85%', once: true },
-      x: -30, opacity: 0, duration: 0.9, ease: 'power3.out'
-    });
+    gsap.fromTo(h,
+      { x: -30, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.9, ease: 'power3.out',
+        scrollTrigger: { trigger: h, start: 'top bottom', once: true } }
+    );
   });
 
-  // ── Need cards ──
-  gsap.from('.need-card', {
-    scrollTrigger: { trigger: '.need-grid', start: 'top 82%', once: true },
-    opacity: 0, y: 22, stagger: 0.09, duration: 0.65, ease: 'power3.out'
+  /* ── Section lead / generic .reveal ── */
+  gsap.utils.toArray('.reveal').forEach(el => {
+    // skip elements that get their own dedicated animation below
+    if (el.closest('.need-grid, .pipeline-grid, .cap-grid, .modules-row, .brief-aside')) return;
+    gsap.fromTo(el,
+      { opacity: 0, y: 22 },
+      { opacity: 1, y: 0, duration: 0.75, ease: 'power3.out',
+        scrollTrigger: { trigger: el, start: 'top bottom', once: true } }
+    );
   });
 
-  // ── Pipeline layers ──
-  gsap.from('.layer-item', {
-    scrollTrigger: { trigger: '.pipeline-grid', start: 'top 80%', once: true },
-    opacity: 0, y: 18, stagger: 0.07, duration: 0.6, ease: 'power3.out'
-  });
+  /* ── Need cards ── */
+  gsap.fromTo('.need-card',
+    { opacity: 0, y: 30 },
+    { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.1,
+      scrollTrigger: { trigger: '.need-grid', start: 'top bottom', once: true } }
+  );
 
-  // ── Cap cards 3D stagger ──
-  gsap.from('.cap-card', {
-    scrollTrigger: { trigger: '.cap-grid', start: 'top 82%', once: true },
-    opacity: 0, y: 34, rotateX: 9, stagger: 0.09, duration: 0.78, ease: 'power4.out'
-  });
+  /* ── Pipeline layers ── */
+  gsap.fromTo('.layer-item',
+    { opacity: 0, y: 22 },
+    { opacity: 1, y: 0, duration: 0.65, ease: 'power3.out', stagger: 0.08,
+      scrollTrigger: { trigger: '.pipeline-grid', start: 'top bottom', once: true } }
+  );
 
-  // ── Module cards ──
-  gsap.from('.module-card', {
-    scrollTrigger: { trigger: '.modules-row', start: 'top 82%', once: true },
-    opacity: 0, y: 28, stagger: 0.1, duration: 0.7, ease: 'power3.out'
-  });
+  /* ── Cap cards ── */
+  gsap.fromTo('.cap-card',
+    { opacity: 0, y: 36, rotateX: 8 },
+    { opacity: 1, y: 0, rotateX: 0, duration: 0.8, ease: 'power4.out', stagger: 0.1,
+      scrollTrigger: { trigger: '.cap-grid', start: 'top bottom', once: true } }
+  );
 
-  // ── Brief facts slide from right ──
-  gsap.from('.brief-fact', {
-    scrollTrigger: { trigger: '.brief-aside', start: 'top 82%', once: true },
-    opacity: 0, x: 28, stagger: 0.1, duration: 0.65, ease: 'power3.out'
-  });
+  /* ── Module cards ── */
+  gsap.fromTo('.module-card',
+    { opacity: 0, y: 30 },
+    { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.12,
+      scrollTrigger: { trigger: '.modules-row', start: 'top bottom', once: true } }
+  );
 
-  // ── CTA ──
-  gsap.from('.cta-h2', {
-    scrollTrigger: { trigger: '.cta-section', start: 'top 78%', once: true },
-    opacity: 0, y: 32, duration: 0.9, ease: 'power4.out'
-  });
+  /* ── Brief facts ── */
+  gsap.fromTo('.brief-fact',
+    { opacity: 0, x: 30 },
+    { opacity: 1, x: 0, duration: 0.65, ease: 'power3.out', stagger: 0.1,
+      scrollTrigger: { trigger: '.brief-aside', start: 'top bottom', once: true } }
+  );
 
-  // ── Hero parallax on scroll ──
+  /* ── Brief doc paragraphs ── */
+  gsap.fromTo('.brief-doc p',
+    { opacity: 0, y: 16 },
+    { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.12,
+      scrollTrigger: { trigger: '.brief-doc', start: 'top bottom', once: true } }
+  );
+
+  /* ── CTA ── */
+  gsap.fromTo('.cta-h2',
+    { opacity: 0, y: 34 },
+    { opacity: 1, y: 0, duration: 0.9, ease: 'power4.out',
+      scrollTrigger: { trigger: '.cta-section', start: 'top bottom', once: true } }
+  );
+
+  /* ── Hero parallax on scroll ── */
   gsap.to('.hero-content', {
     scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 1.2 },
     y: -60, ease: 'none'
@@ -1366,90 +1110,77 @@ function initScrollFeatures() {
     y: -40, ease: 'none'
   });
 
-  // ── Brief-doc lines stagger ──
-  gsap.from('.brief-doc p', {
-    scrollTrigger: { trigger: '.brief-doc', start: 'top 82%', once: true },
-    opacity: 0, y: 14, stagger: 0.12, duration: 0.7, ease: 'power3.out'
-  });
+  /* ── Brief-fact count-up ── */
+  document.querySelectorAll('.brief-fact-val[data-count]').forEach(el => runCounter(el, ScrollTrigger));
 
-  // ── Scroll-driven count-up (non-hero stats) ──
-  document.querySelectorAll('.brief-fact-val[data-count]').forEach(el => {
-    runCounter(el, ScrollTrigger);
-  });
+  /* ── Nav section highlight ── */
+  const links = document.querySelectorAll('.nav-links a[data-section]');
+  const secObs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting)
+        links.forEach(a => a.classList.toggle('active', a.dataset.section === e.target.id));
+    });
+  }, { threshold: 0.4 });
+  ['architecture','capabilities','modules'].forEach(id => { const el = document.getElementById(id); if (el) secObs.observe(el); });
+
+  /* ── Safety net: after 2.8 s ensure nothing is still hidden ── */
+  setTimeout(() => {
+    document.querySelectorAll('.reveal, .cap-card, .need-card, .module-card, .layer-item, .brief-fact').forEach(el => {
+      const op = parseFloat(window.getComputedStyle(el).opacity);
+      if (op < 0.05) gsap.set(el, { opacity: 1, y: 0, x: 0, rotateX: 0 });
+    });
+    ScrollTrigger.refresh();
+  }, 2800);
 }
 
 /* ═══════════════════════════════════════
    COUNT-UP HELPER
 ═══════════════════════════════════════ */
 function runCounter(el, ST) {
-  const raw     = el.dataset.count;
-  const m       = raw.match(/^([\d.]+)(.*)/u);
-  if (!m) return;
-  const target  = parseFloat(m[1]);
-  const suffix  = m[2] || '';
-  const isFloat = m[1].includes('.');
-  let   ran     = false;
-
+  const raw = el.dataset.count;
+  const m   = raw.match(/^([\d.]+)(.*)/u); if (!m) return;
+  const target = parseFloat(m[1]); const suffix = m[2] || '';
+  const isFloat = m[1].includes('.'); let ran = false;
   const doAnim = () => {
     if (ran) return; ran = true;
     const obj = { v: 0 };
-    gsap.to(obj, {
-      v: target, duration: 1.2, ease: 'power2.out',
-      onUpdate() {
-        el.textContent = (isFloat ? obj.v.toFixed(1) : Math.floor(obj.v)) + suffix;
-      },
-      onComplete() {
-        el.textContent = raw;
-        el.classList.add('glitch');
-        setTimeout(() => el.classList.remove('glitch'), 360);
-      }
+    gsap.to(obj, { v: target, duration: 1.2, ease: 'power2.out',
+      onUpdate() { el.textContent = (isFloat ? obj.v.toFixed(1) : Math.floor(obj.v)) + suffix; },
+      onComplete() { el.textContent = raw; el.classList.add('glitch'); setTimeout(() => el.classList.remove('glitch'), 360); }
     });
   };
-
-  if (ST) {
-    ST.create({ trigger: el, start: 'top 88%', once: true, onEnter: doAnim });
-  } else {
-    doAnim();
-  }
+  if (ST) { ST.create({ trigger: el, start: 'top bottom', once: true, onEnter: doAnim }); }
+  else { doAnim(); }
 }
 
 /* ═══════════════════════════════════════
-   HERO STAT COUNT-UP (timeline-driven)
+   HERO STAT COUNT-UP
 ═══════════════════════════════════════ */
 function runHeroCounters() {
   document.querySelectorAll('.hero-stat-val[data-count]').forEach(el => runCounter(el, null));
 }
 
 /* ═══════════════════════════════════════
-   MAGNETIC CARDS (GSAP enhanced)
+   MAGNETIC CARDS
 ═══════════════════════════════════════ */
 function initMagnetic() {
   if (prefersReduced() || isMobile()) return;
   const MAX_TILT = 5.5;
-
   document.querySelectorAll('.cap-card').forEach(card => {
     let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
-
     function loop() {
-      cx += (tx - cx) * 0.095;
-      cy += (ty - cy) * 0.095;
+      cx += (tx - cx) * 0.095; cy += (ty - cy) * 0.095;
       gsap.set(card, { rotateX: cx, rotateY: cy, translateY: -3, scale: 1.015, force3D: true });
       raf = requestAnimationFrame(loop);
     }
-
-    card.addEventListener('mouseenter', () => {
-      card.classList.remove('returning');
-      card.style.willChange = 'transform';
-      loop();
-    });
+    card.addEventListener('mouseenter', () => { card.classList.remove('returning'); card.style.willChange = 'transform'; loop(); });
     card.addEventListener('mousemove', e => {
       const r = card.getBoundingClientRect();
       ty =  ((e.clientX - r.left - r.width  / 2) / (r.width  / 2)) * MAX_TILT;
       tx = -((e.clientY - r.top  - r.height / 2) / (r.height / 2)) * MAX_TILT;
     });
     card.addEventListener('mouseleave', () => {
-      cancelAnimationFrame(raf);
-      tx = 0; ty = 0;
+      cancelAnimationFrame(raf); tx = 0; ty = 0;
       card.classList.add('returning');
       gsap.to(card, { rotateX: 0, rotateY: 0, translateY: 0, scale: 1, duration: 0.65, ease: 'power3.out' });
       card.style.willChange = '';
@@ -1458,42 +1189,26 @@ function initMagnetic() {
 }
 
 /* ═══════════════════════════════════════
-   MAGNETIC BUTTONS (subtle translate)
+   MAGNETIC BUTTONS
 ═══════════════════════════════════════ */
 function initMagneticBtns() {
   if (prefersReduced() || isMobile()) return;
   document.querySelectorAll('.btn-primary,.btn-secondary').forEach(btn => {
     btn.addEventListener('mousemove', e => {
-      const r  = btn.getBoundingClientRect();
-      const ox = (e.clientX - r.left - r.width  / 2) * 0.28;
-      const oy = (e.clientY - r.top  - r.height / 2) * 0.28;
-      gsap.to(btn, { x: ox, y: oy, duration: 0.35, ease: 'power2.out' });
+      const r = btn.getBoundingClientRect();
+      gsap.to(btn, { x: (e.clientX - r.left - r.width/2) * 0.28, y: (e.clientY - r.top - r.height/2) * 0.28, duration: 0.35, ease: 'power2.out' });
     });
-    btn.addEventListener('mouseleave', () => {
-      gsap.to(btn, { x: 0, y: 0, duration: 0.55, ease: 'elastic.out(1,.5)' });
-    });
+    btn.addEventListener('mouseleave', () => { gsap.to(btn, { x: 0, y: 0, duration: 0.55, ease: 'elastic.out(1,.5)' }); });
   });
 }
 
 /* ═══════════════════════════════════════
-   NAV
+   NAV CLOCK
 ═══════════════════════════════════════ */
 function initNav() {
-  const nav = document.getElementById('nav');
-  window.addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 20), { passive: true });
-
-  const links = document.querySelectorAll('.nav-links a[data-section]');
-  const secObs = new IntersectionObserver(entries => {
-    entries.forEach(e => {
-      if (e.isIntersecting)
-        links.forEach(a => a.classList.toggle('active', a.dataset.section === e.target.id));
-    });
-  }, { threshold: 0.4 });
-  ['architecture','capabilities','modules'].forEach(id => {
-    const el = document.getElementById(id); if (el) secObs.observe(el);
-  });
-
+  const nav     = document.getElementById('nav');
   const clockEl = document.getElementById('nav-clock');
+  window.addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 20), { passive: true });
   if (clockEl) {
     const p = n => String(n).padStart(2,'0');
     const tick = () => { const d = new Date(); clockEl.textContent = `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`; };
@@ -1516,7 +1231,7 @@ function initMenu() {
 }
 
 /* ═══════════════════════════════════════
-   HERO PARALLAX (mouse)
+   HERO MOUSE PARALLAX
 ═══════════════════════════════════════ */
 function initParallax() {
   if (prefersReduced()) return;
@@ -1537,17 +1252,16 @@ function initParallax() {
 }
 
 /* ═══════════════════════════════════════
-   AUDIT LOG
+   AUDIT LOG TIMESTAMPS
 ═══════════════════════════════════════ */
 function initAudit() {
   const p = n => String(n).padStart(2,'0');
-  const offsets = [0,3,22,36,58];
-  const ids     = ['at1','at2','at3','at4','at5'];
+  const offsets = [0,3,22,36,58]; const ids = ['at1','at2','at3','at4','at5'];
   function setTimes() {
     const now = new Date();
     ids.forEach((id,i) => {
       const el = document.getElementById(id); if (!el) return;
-      const t  = new Date(now - offsets[i] * 1000);
+      const t = new Date(now - offsets[i] * 1000);
       el.textContent = `${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:${p(t.getUTCSeconds())}`;
     });
     const s = document.getElementById('stat-utc');
@@ -1563,21 +1277,14 @@ function initSmoothAnchor() {
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
       const id = a.getAttribute('href').slice(1);
-      const target = document.getElementById(id);
-      if (!target) return;
+      const target = document.getElementById(id); if (!target) return;
       e.preventDefault();
       const dest = target.getBoundingClientRect().top + window.scrollY - 60;
-      const start = window.scrollY;
-      const dist  = dest - start;
+      const start = window.scrollY; const dist = dest - start;
       const dur   = Math.min(1200, Math.abs(dist) * 0.45 + 300);
       let startT  = null;
       const ease  = t => t < .5 ? 4*t*t*t : (t-1)*(2*t-2)*(2*t-2)+1;
-      const step  = ts => {
-        if (!startT) startT = ts;
-        const p = Math.min((ts - startT) / dur, 1);
-        window.scrollTo(0, start + dist * ease(p));
-        if (p < 1) requestAnimationFrame(step);
-      };
+      const step  = ts => { if (!startT) startT = ts; const p = Math.min((ts - startT) / dur, 1); window.scrollTo(0, start + dist * ease(p)); if (p < 1) requestAnimationFrame(step); };
       requestAnimationFrame(step);
     });
   });
@@ -1588,15 +1295,10 @@ function initSmoothAnchor() {
 ═══════════════════════════════════════ */
 function initFlicker() {
   document.querySelectorAll('.hero-stat-val[data-count]').forEach(el => {
-    const raw = el.dataset.count;
-    // Only flicker pure integer values (no suffix like ms, K, ×)
-    if (!/^\d+$/.test(raw)) return;
+    const raw = el.dataset.count; if (!/^\d+$/.test(raw)) return;
     const num = parseInt(raw);
     setInterval(() => {
-      if (!document.hidden) {
-        el.textContent = num + (Math.random() > .5 ? 1 : -1);
-        setTimeout(() => { el.textContent = raw; }, 85);
-      }
+      if (!document.hidden) { el.textContent = num + (Math.random() > .5 ? 1 : -1); setTimeout(() => { el.textContent = raw; }, 85); }
     }, 3500 + Math.random() * 3000);
   });
 }
@@ -1614,12 +1316,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initMagneticBtns();
   initSmoothAnchor();
 
-  // Init Three.js globe early so it's ready
   if (!prefersReduced()) {
     try { new IntelGlobe(); } catch(e) { console.warn('Globe init failed:', e); }
   }
 
-  // Loader → hero entry sequence
   initLoader(() => {
     initHeroEntry();
     setTimeout(initFlicker, 1800);
