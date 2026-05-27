@@ -1408,8 +1408,8 @@ function initScrollFeatures() {
    COUNT-UP HELPER
 ═══════════════════════════════════════ */
 function runCounter(el, ST) {
-  if (!hasGSAP()) return;
   const raw     = el.dataset.count;
+  if (!hasGSAP()) { el.textContent = raw; return; }
   const m       = raw.match(/^([\d.]+)(.*)/u);
   if (!m) return;
   const target  = parseFloat(m[1]);
