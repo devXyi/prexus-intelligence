@@ -762,7 +762,7 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 ═══════════════════════════════════════ */
 const isMobile = () => window.matchMedia('(max-width:768px)').matches;
 const prefersReduced = () => window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-const hasFinePonter = () => window.matchMedia('(pointer:fine)').matches;
+const hasFinePointer = () => window.matchMedia('(pointer:fine)').matches;
 const hasGSAP = () => typeof window.gsap !== 'undefined';
 const hasScrollTrigger = () => typeof window.ScrollTrigger !== 'undefined';
 
@@ -778,7 +778,7 @@ function revealStaticContent() {
    CUSTOM CURSOR
 ═══════════════════════════════════════ */
 function initCursor() {
-  if (!hasFinePonter() || prefersReduced()) {
+  if (!hasFinePointer() || prefersReduced()) {
     document.getElementById('cursor').style.display = 'none';
     return;
   }
@@ -1408,8 +1408,8 @@ function initScrollFeatures() {
    COUNT-UP HELPER
 ═══════════════════════════════════════ */
 function runCounter(el, ST) {
+  if (!hasGSAP()) return;
   const raw     = el.dataset.count;
-  if (!hasGSAP()) { el.textContent = raw; return; }
   const m       = raw.match(/^([\d.]+)(.*)/u);
   if (!m) return;
   const target  = parseFloat(m[1]);
