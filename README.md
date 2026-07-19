@@ -696,7 +696,7 @@ The **backend systems, intelligence pipelines, simulation engines, and data infr
 - All risk models, IPCC pathway integrations, scenario calibration logic
 - The Prexus intelligence architecture, scoring algorithms, and data fusion methods
 
-Commercial licensing, institutional pilots, and sovereign deployment agreements are available. Contact: **[contact@prexus.io](mailto:contact@prexus.io)**
+Commercial licensing, institutional pilots, and sovereign deployment agreements are available. Contact: **[dev@prexus.in](mailto:dev@prexus.in)**
 
 See [`LICENSE`](./LICENSE) (Apache 2.0) and [`NOTICE`](./NOTICE) (Proprietary terms) for full details.
 
