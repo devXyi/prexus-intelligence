@@ -6,6 +6,7 @@ For each registered asset: extract all environmental signals,
 construct feature vector, compute confidence, cache for risk engine.
 """
 
+import hashlib
 import json
 import logging
 import sqlite3
@@ -68,6 +69,25 @@ class FeatureStore:
         finally:
             conn.close()
 
+    @staticmethod
+    def _h3_index_as_int(h3_idx: str) -> int:
+        """Return a stable integer representation for real H3 or fallback cells."""
+        if not h3_idx:
+            return 0
+
+        # H3 cell indexes are hexadecimal strings in the normal H3 path.
+        if not h3_idx.startswith("grid_"):
+            try:
+                return int(h3_idx, 16)
+            except ValueError:
+                pass
+
+        # The dependency-free Layer 3 fallback uses strings such as
+        # grid_26.80_80.90_r7. Never attempt to parse the whole string as int;
+        # keep a stable 64-bit identifier instead.
+        digest = hashlib.sha256(h3_idx.encode("utf-8")).digest()
+        return int.from_bytes(digest[:8], byteorder="big", signed=False)
+
     # ── Main extraction ────────────────────────────────────────────────────────
 
     def extract(
@@ -106,7 +126,7 @@ class FeatureStore:
 
         features = AssetFeatures(
             asset_id     = asset_id,
-            h3_index     = int(h3_idx.replace("grid_","").replace(".","").replace("-","")[:15]) if not h3_idx.startswith("0x") else int(h3_idx, 16) if False else 0,
+            h3_index     = self._h3_index_as_int(h3_idx),
             lat          = lat,
             lon          = lon,
             country_code = country_code,
@@ -222,9 +242,14 @@ class FeatureStore:
         sources   = json.loads(row["sources_json"] or "{}")
         computed  = datetime.fromisoformat(row["computed_at"])
 
+        try:
+            cached_h3 = int(row["h3_index"])
+        except (TypeError, ValueError):
+            cached_h3 = 0
+
         f = AssetFeatures(
             asset_id             = row["asset_id"],
-            h3_index             = 0,
+            h3_index             = cached_h3,
             lat                  = row["lat"],
             lon                  = row["lon"],
             country_code         = row["country_code"],
