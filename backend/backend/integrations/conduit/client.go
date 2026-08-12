@@ -24,10 +24,7 @@ type Client struct {
 }
 
 func NewClient(cfg Config) *Client {
-	return &Client{
-		cfg: cfg,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-	}
+	return &Client{cfg: cfg, httpClient: &http.Client{Timeout: 30 * time.Second}}
 }
 
 type tokenResponse struct {
@@ -46,15 +43,12 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	c.mu.Unlock()
 
 	payload, err := json.Marshal(map[string]string{
-		"client_id":     c.cfg.ClientID,
-		"client_secret": c.cfg.ClientSecret,
-		"audience":      c.cfg.Audience,
-		"grant_type":    "client_credentials",
+		"client_id": c.cfg.ClientID, "client_secret": c.cfg.ClientSecret,
+		"audience": c.cfg.Audience, "grant_type": "client_credentials",
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode conduit token request: %w", err)
 	}
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.TokenURL, bytes.NewReader(payload))
 	if err != nil {
 		return "", fmt.Errorf("create conduit token request: %w", err)
@@ -69,7 +63,6 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("conduit token endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
-
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {
 		return "", fmt.Errorf("decode conduit token response: %w", err)
@@ -77,14 +70,12 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	if tr.AccessToken == "" {
 		return "", fmt.Errorf("conduit token endpoint returned no access_token")
 	}
-
 	expires := time.Duration(tr.ExpiresIn) * time.Second
 	if expires <= 0 {
 		expires = 5 * time.Minute
 	}
 	c.mu.Lock()
-	c.token = tr.AccessToken
-	c.tokenExp = time.Now().Add(expires)
+	c.token, c.tokenExp = tr.AccessToken, time.Now().Add(expires)
 	t := c.token
 	c.mu.Unlock()
 	return t, nil
@@ -92,7 +83,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 
 type rpcRequest struct {
 	JSONRPC string      `json:"jsonrpc"`
-	ID      uint64      `json:"id"`
+	ID      uint64      `json:"id,omitempty"`
 	Method  string      `json:"method"`
 	Params  interface{} `json:"params,omitempty"`
 }
@@ -105,37 +96,33 @@ type rpcResponse struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
+	Code int `json:"code"`
 	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
+	Data any `json:"data,omitempty"`
 }
 
 func (c *Client) nextID() uint64 { return atomic.AddUint64(&c.seq, 1) }
 
-func (c *Client) call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
+func (c *Client) request(ctx context.Context, method string, params interface{}, notification bool) (json.RawMessage, error) {
 	token, err := c.accessToken(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	reqBody, err := json.Marshal(rpcRequest{
-		JSONRPC: "2.0",
-		ID:      c.nextID(),
-		Method:  method,
-		Params:  params,
-	})
+	rpc := rpcRequest{JSONRPC: "2.0", Method: method, Params: params}
+	if !notification {
+		rpc.ID = c.nextID()
+	}
+	body, err := json.Marshal(rpc)
 	if err != nil {
 		return nil, fmt.Errorf("encode MCP request: %w", err)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.MCPURL, bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.MCPURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create MCP request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
-
 	c.mu.Lock()
 	if c.sessionID != "" {
 		req.Header.Set("Mcp-Session-Id", c.sessionID)
@@ -147,19 +134,19 @@ func (c *Client) call(ctx context.Context, method string, params interface{}) (j
 		return nil, fmt.Errorf("MCP request failed: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if sid := resp.Header.Get("Mcp-Session-Id"); sid != "" {
 		c.mu.Lock()
 		c.sessionID = sid
 		c.mu.Unlock()
 	}
-
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("MCP endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("MCP endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(responseBody)))
 	}
-
-	result, err := decodeRPC(body, resp.Header.Get("Content-Type"))
+	if notification {
+		return nil, nil
+	}
+	result, err := decodeRPC(responseBody, resp.Header.Get("Content-Type"))
 	if err != nil {
 		return nil, err
 	}
@@ -169,14 +156,20 @@ func (c *Client) call(ctx context.Context, method string, params interface{}) (j
 	return result.Result, nil
 }
 
+func (c *Client) call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
+	return c.request(ctx, method, params, false)
+}
+
+func (c *Client) notify(ctx context.Context, method string, params interface{}) error {
+	_, err := c.request(ctx, method, params, true)
+	return err
+}
+
 func decodeRPC(body []byte, contentType string) (rpcResponse, error) {
 	var direct rpcResponse
 	if json.Unmarshal(body, &direct) == nil && (direct.Result != nil || direct.Error != nil) {
 		return direct, nil
 	}
-
-	// Streamable HTTP may return an SSE response. We only need the final JSON-RPC
-	// message here; notifications without an id are ignored.
 	for _, line := range strings.Split(string(body), "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "data:") {
@@ -194,17 +187,13 @@ func decodeRPC(body []byte, contentType string) (rpcResponse, error) {
 func (c *Client) Initialize(ctx context.Context) (json.RawMessage, error) {
 	return c.call(ctx, "initialize", map[string]interface{}{
 		"protocolVersion": "2025-03-26",
-		"capabilities":    map[string]interface{}{},
-		"clientInfo": map[string]string{
-			"name":    "prexus-intelligence",
-			"version": "2.1.0",
-		},
+		"capabilities": map[string]interface{}{},
+		"clientInfo": map[string]string{"name": "prexus-intelligence", "version": "2.1.0"},
 	})
 }
 
 func (c *Client) Initialized(ctx context.Context) error {
-	_, err := c.call(ctx, "notifications/initialized", nil)
-	return err
+	return c.notify(ctx, "notifications/initialized", nil)
 }
 
 func (c *Client) ListTools(ctx context.Context) (json.RawMessage, error) {
@@ -212,8 +201,5 @@ func (c *Client) ListTools(ctx context.Context) (json.RawMessage, error) {
 }
 
 func (c *Client) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (json.RawMessage, error) {
-	return c.call(ctx, "tools/call", map[string]interface{}{
-		"name":      name,
-		"arguments": arguments,
-	})
+	return c.call(ctx, "tools/call", map[string]interface{}{"name": name, "arguments": arguments})
 }
