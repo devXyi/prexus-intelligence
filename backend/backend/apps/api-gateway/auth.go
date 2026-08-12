@@ -18,10 +18,6 @@ import (
 
 const authTimeout = 5 * time.Second
 
-// ─────────────────────────────────────────────────────────────
-// Models
-// ─────────────────────────────────────────────────────────────
-
 type RegisterRequest struct {
 	Email    string `json:"email"     binding:"required,email"`
 	Password string `json:"password"  binding:"required,min=6"`
@@ -40,7 +36,7 @@ type AuthResponse struct {
 }
 
 type UserDTO struct {
-	ID       int64  `json:"id"`
+	ID       string `json:"id"`
 	Email    string `json:"email"`
 	FullName string `json:"full_name"`
 	OrgName  string `json:"org_name"`
@@ -48,15 +44,11 @@ type UserDTO struct {
 }
 
 type Claims struct {
-	UserID int64  `json:"user_id"`
+	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
-
-// ─────────────────────────────────────────────────────────────
-// Register
-// ─────────────────────────────────────────────────────────────
 
 func handleRegister(c *gin.Context) {
 	var req RegisterRequest
@@ -66,12 +58,10 @@ func handleRegister(c *gin.Context) {
 	}
 
 	email := normalizeEmail(req.Email)
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), authTimeout)
 	defer cancel()
 
-	// Duplicate email check
-	var existingID int64
+	var existingID string
 	err := DB.QueryRowContext(ctx, "SELECT id FROM users WHERE email=$1", email).Scan(&existingID)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
@@ -85,9 +75,8 @@ func handleRegister(c *gin.Context) {
 		return
 	}
 
-	// FIX: include updated_at — column is NOT NULL; omitting it caused constraint failures
 	now := time.Now().UTC()
-	var userID int64
+	var userID string
 	err = DB.QueryRowContext(ctx,
 		`INSERT INTO users (email, password_hash, full_name, org_name, role, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, 'user', $5, $6)
@@ -113,10 +102,6 @@ func handleRegister(c *gin.Context) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────
-// Login
-// ─────────────────────────────────────────────────────────────
-
 func handleLogin(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -125,11 +110,10 @@ func handleLogin(c *gin.Context) {
 	}
 
 	email := normalizeEmail(req.Email)
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), authTimeout)
 	defer cancel()
 
-	var id int64
+	var id string
 	var passHash, fullName, orgName, role string
 
 	err := DB.QueryRowContext(ctx,
@@ -138,7 +122,6 @@ func handleLogin(c *gin.Context) {
 		email,
 	).Scan(&id, &passHash, &fullName, &orgName, &role)
 
-	// 🔒 Constant-time path — prevents user enumeration via timing
 	dummyHash := "$2a$10$7EqJtq98hPqEX7fNZaFWoO5uX0ZQ5Y9z3rroWAt4EvsC0BpFkOukC"
 	if err != nil {
 		_ = bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(req.Password))
@@ -163,13 +146,8 @@ func handleLogin(c *gin.Context) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────
-// Me
-// ─────────────────────────────────────────────────────────────
-
 func handleGetMe(c *gin.Context) {
-	userID := c.GetInt64("user_id")
-
+	userID := c.GetString("user_id")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), authTimeout)
 	defer cancel()
 
@@ -180,25 +158,16 @@ func handleGetMe(c *gin.Context) {
 	).Scan(&fullName, &orgName)
 
 	if err != nil {
-		log.Printf("getMe error user=%d: %v", userID, err)
+		log.Printf("getMe error user=%s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User fetch failed"})
 		return
 	}
 
-	c.JSON(http.StatusOK, UserDTO{
-		ID:       userID,
-		Email:    c.GetString("email"),
-		FullName: fullName,
-		OrgName:  orgName,
-		Role:     c.GetString("role"),
-	})
+	c.JSON(http.StatusOK, UserDTO{ID: userID, Email: c.GetString("email"), FullName: fullName, OrgName: orgName, Role: c.GetString("role")})
 }
 
-// FIX: use COALESCE(NULLIF(...)) so sending an empty string never wipes existing data.
-// Previously: UPDATE users SET full_name=$1, org_name=$2 — a blank field would clear the column.
 func handleUpdateMe(c *gin.Context) {
-	userID := c.GetInt64("user_id")
-
+	userID := c.GetString("user_id")
 	var req struct {
 		FullName string `json:"full_name"`
 		OrgName  string `json:"org_name"`
@@ -208,7 +177,6 @@ func handleUpdateMe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	if req.FullName == "" && req.OrgName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
 		return
@@ -216,31 +184,21 @@ func handleUpdateMe(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), authTimeout)
 	defer cancel()
-
-	// COALESCE(NULLIF($n, ''), column) means:
-	//   - if the sent value is a non-empty string → use it
-	//   - if the sent value is '' or omitted      → keep the existing DB value
 	_, err := DB.ExecContext(ctx,
 		`UPDATE users
-		 SET full_name  = COALESCE(NULLIF($1, ''), full_name),
-		     org_name   = COALESCE(NULLIF($2, ''), org_name),
+		 SET full_name = COALESCE(NULLIF($1, ''), full_name),
+		     org_name = COALESCE(NULLIF($2, ''), org_name),
 		     updated_at = $3
 		 WHERE id = $4`,
 		req.FullName, req.OrgName, time.Now().UTC(), userID,
 	)
-
 	if err != nil {
-		log.Printf("updateMe error user=%d: %v", userID, err)
+		log.Printf("updateMe error user=%s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
-
-// ─────────────────────────────────────────────────────────────
-// JWT
-// ─────────────────────────────────────────────────────────────
 
 func jwtSecret() []byte {
 	s := os.Getenv("JWT_SECRET")
@@ -250,23 +208,19 @@ func jwtSecret() []byte {
 	return []byte(s)
 }
 
-func issueToken(userID int64, email, role string) (string, error) {
+func issueToken(userID string, email, role string) (string, error) {
 	claims := Claims{
 		UserID: userID,
-		Email:  email,
-		Role:   role,
+		Email: email,
+		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			IssuedAt: jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			Issuer:    "prexus-gateway",
+			Issuer: "prexus-gateway",
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret())
 }
-
-// ─────────────────────────────────────────────────────────────
-// Middleware
-// ─────────────────────────────────────────────────────────────
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -275,9 +229,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization required"})
 			return
 		}
-
 		tokenStr := strings.TrimPrefix(h, "Bearer ")
-
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -285,22 +237,16 @@ func AuthMiddleware() gin.HandlerFunc {
 			}
 			return jwtSecret(), nil
 		})
-
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return
 		}
-
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("role", claims.Role)
 		c.Next()
 	}
 }
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 
 func normalizeEmail(e string) string {
 	return strings.ToLower(strings.TrimSpace(e))
