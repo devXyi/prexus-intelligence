@@ -1,7 +1,7 @@
 // backend/apps/api-gateway/risk.go
 // Prexus Intelligence — Risk proxy handlers
 // Forwards authenticated risk requests to the Python data engine.
-// Handles caching, timeout, and graceful degradation.
+// Handles caching, timeout, retries, and graceful degradation.
 
 package main
 
@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	ProxyTimeoutSeconds    = 35
-	CacheRiskTTLSeconds    = 300   // 5 min cache for asset risk scores
+	ProxyTimeoutSeconds = 35
+	CacheRiskTTLSeconds = 300
+	EngineMaxRetries    = 4
 )
 
-// In-memory risk cache (replace with Redis in production)
 var riskCache = struct {
 	mu    sync.RWMutex
 	store map[string]cachedRisk
@@ -35,8 +35,6 @@ type cachedRisk struct {
 	expiresAt time.Time
 }
 
-// ── Data engine URL ──────────────────────────────────────────────────────────
-
 func getDataEngineURL() string {
 	url := os.Getenv("DATA_ENGINE_URL")
 	if url == "" {
@@ -45,21 +43,34 @@ func getDataEngineURL() string {
 	return url
 }
 
-// ── Proxy factory ────────────────────────────────────────────────────────────
+func retryDelay(attempt int, resp *http.Response) time.Duration {
+	if resp != nil {
+		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+			if d, err := time.ParseDuration(retryAfter + "s"); err == nil && d > 0 && d <= 10*time.Second {
+				return d
+			}
+		}
+	}
+	return time.Duration(1<<(attempt-1)) * time.Second
+}
 
-// proxyToDataEngine returns a handler that forwards POST bodies to the engine.
+func shouldRetryEngineStatus(status int) bool {
+	return status == http.StatusTooManyRequests ||
+		status == http.StatusBadGateway ||
+		status == http.StatusServiceUnavailable ||
+		status == http.StatusGatewayTimeout
+}
+
 func proxyToDataEngine(path string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		engineURL := getDataEngineURL() + path
 
-		// Read request body
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request"})
 			return
 		}
 
-		// Cache check for risk/asset (cache by asset_id + scenario + horizon)
 		if path == "/risk/asset" {
 			if cached, ok := getRiskCache(body); ok {
 				c.Data(http.StatusOK, "application/json", cached)
@@ -67,41 +78,57 @@ func proxyToDataEngine(path string) gin.HandlerFunc {
 			}
 		}
 
-		// Forward to data engine
-		client := &http.Client{Timeout: time.Duration(ProxyTimeoutSeconds) * time.Second}
+		client := &http.Client{Timeout: ProxyTimeoutSeconds * time.Second}
+		var resp *http.Response
+		var lastErr error
 
-		req, err := http.NewRequest(http.MethodPost, engineURL, bytes.NewReader(body))
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Proxy request failed"})
-			return
+		for attempt := 1; attempt <= EngineMaxRetries; attempt++ {
+			req, reqErr := http.NewRequest(http.MethodPost, engineURL, bytes.NewReader(body))
+			if reqErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Proxy request failed"})
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+			if secret := os.Getenv("ENGINE_SECRET"); secret != "" {
+				req.Header.Set("Authorization", "Bearer "+secret)
+			}
+
+			start := time.Now()
+			resp, lastErr = client.Do(req)
+			elapsed := time.Since(start)
+
+			if lastErr != nil {
+				log.Printf("[proxy] %s attempt=%d engine error after %v: %v", path, attempt, elapsed, lastErr)
+				if attempt < EngineMaxRetries {
+					time.Sleep(retryDelay(attempt, nil))
+					continue
+				}
+				break
+			}
+
+			if !shouldRetryEngineStatus(resp.StatusCode) || attempt == EngineMaxRetries {
+				break
+			}
+
+			log.Printf("[proxy] %s attempt=%d upstream=%d; retrying", path, attempt, resp.StatusCode)
+			resp.Body.Close()
+			time.Sleep(retryDelay(attempt, resp))
 		}
-		req.Header.Set("Content-Type", "application/json")
 
-		// Pass engine secret if configured
-		if secret := os.Getenv("ENGINE_SECRET"); secret != "" {
-			req.Header.Set("Authorization", "Bearer "+secret)
-		}
-
-		start := time.Now()
-		resp, err := client.Do(req)
-		elapsed := time.Since(start)
-
-		if err != nil {
-			log.Printf("[proxy] %s engine error after %v: %v", path, elapsed, err)
+		if lastErr != nil || resp == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error":    "Data engine unavailable",
-				"detail":   err.Error(),
-				"path":     path,
+				"error": "Data engine unavailable",
+				"detail": lastErr.Error(),
+				"path": path,
 			})
 			return
 		}
 		defer resp.Body.Close()
 
 		respBody, _ := io.ReadAll(resp.Body)
-		log.Printf("[proxy] %s → %d (%v)", path, resp.StatusCode, elapsed)
+		log.Printf("[proxy] %s → %d", path, resp.StatusCode)
 
-		// Cache successful risk responses
-		if path == "/risk/asset" && resp.StatusCode == 200 {
+		if path == "/risk/asset" && resp.StatusCode == http.StatusOK {
 			setRiskCache(body, respBody)
 		}
 
@@ -109,34 +136,59 @@ func proxyToDataEngine(path string) gin.HandlerFunc {
 	}
 }
 
-// proxyToDataEngineGET forwards GET requests to the engine.
 func proxyToDataEngineGET(path string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		engineURL := getDataEngineURL() + path
-		client    := &http.Client{Timeout: 10 * time.Second}
+		client := &http.Client{Timeout: 15 * time.Second}
+		var resp *http.Response
+		var lastErr error
 
-		req, _ := http.NewRequest(http.MethodGet, engineURL, nil)
-		if secret := os.Getenv("ENGINE_SECRET"); secret != "" {
-			req.Header.Set("Authorization", "Bearer "+secret)
+		for attempt := 1; attempt <= EngineMaxRetries; attempt++ {
+			req, reqErr := http.NewRequest(http.MethodGet, engineURL, nil)
+			if reqErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Proxy request failed"})
+				return
+			}
+			if secret := os.Getenv("ENGINE_SECRET"); secret != "" {
+				req.Header.Set("Authorization", "Bearer "+secret)
+			}
+
+			start := time.Now()
+			resp, lastErr = client.Do(req)
+			elapsed := time.Since(start)
+
+			if lastErr != nil {
+				log.Printf("[proxy] GET %s attempt=%d engine error after %v: %v", path, attempt, elapsed, lastErr)
+				if attempt < EngineMaxRetries {
+					time.Sleep(retryDelay(attempt, nil))
+					continue
+				}
+				break
+			}
+
+			if !shouldRetryEngineStatus(resp.StatusCode) || attempt == EngineMaxRetries {
+				break
+			}
+
+			log.Printf("[proxy] GET %s attempt=%d upstream=%d; retrying", path, attempt, resp.StatusCode)
+			resp.Body.Close()
+			time.Sleep(retryDelay(attempt, resp))
 		}
 
-		resp, err := client.Do(req)
-		if err != nil {
+		if lastErr != nil || resp == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error":   "Data engine unavailable",
-				"online":  false,
-				"status":  "offline",
+				"error": "Data engine unavailable",
+				"path": path,
 			})
 			return
 		}
 		defer resp.Body.Close()
 
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[proxy] GET %s → %d", path, resp.StatusCode)
 		c.Data(resp.StatusCode, "application/json", body)
 	}
 }
-
-// ── Risk cache helpers ────────────────────────────────────────────────────────
 
 type cacheKey struct {
 	AssetID  string `json:"asset_id"`
@@ -171,11 +223,10 @@ func setRiskCache(reqBody, respBody []byte) {
 	defer riskCache.mu.Unlock()
 
 	riskCache.store[key] = cachedRisk{
-		data:      respBody,
+		data: respBody,
 		expiresAt: time.Now().Add(CacheRiskTTLSeconds * time.Second),
 	}
 
-	// Evict expired entries (lazy GC)
 	if len(riskCache.store) > 1000 {
 		now := time.Now()
 		for entryKey, entry := range riskCache.store {
