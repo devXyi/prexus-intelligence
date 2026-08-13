@@ -25,17 +25,12 @@ import (
 const VERSION = "2.1.0"
 
 var allowedModels = map[string]struct{}{
-	"claude-opus-4-7": {},
-	"claude-sonnet-4-6": {},
-	"claude-haiku-4-5-20251001": {},
+	"claude-opus-4-7": {}, "claude-sonnet-4-6": {}, "claude-haiku-4-5-20251001": {},
 }
 
 const defaultModel = "claude-haiku-4-5-20251001"
 
-type ipLimiter struct {
-	limiter *rate.Limiter
-	lastSeen time.Time
-}
+type ipLimiter struct { limiter *rate.Limiter; lastSeen time.Time }
 
 var (
 	limiters = make(map[string]*ipLimiter)
@@ -45,10 +40,7 @@ var (
 func getLimiter(ip string) *rate.Limiter {
 	limitersMu.Lock()
 	defer limitersMu.Unlock()
-	if il, ok := limiters[ip]; ok {
-		il.lastSeen = time.Now()
-		return il.limiter
-	}
+	if il, ok := limiters[ip]; ok { il.lastSeen = time.Now(); return il.limiter }
 	l := rate.NewLimiter(5, 10)
 	limiters[ip] = &ipLimiter{limiter: l, lastSeen: time.Now()}
 	return l
@@ -62,9 +54,7 @@ func cleanupLimiters(ctx context.Context) {
 		case <-ctx.Done(): return
 		case <-ticker.C:
 			limitersMu.Lock()
-			for ip, il := range limiters {
-				if time.Since(il.lastSeen) > 10*time.Minute { delete(limiters, ip) }
-			}
+			for ip, il := range limiters { if time.Since(il.lastSeen) > 10*time.Minute { delete(limiters, ip) } }
 			limitersMu.Unlock()
 		}
 	}
@@ -72,8 +62,7 @@ func cleanupLimiters(ctx context.Context) {
 
 func RateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		if !getLimiter(ip).Allow() {
+		if !getLimiter(c.ClientIP()).Allow() {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded — slow down"})
 			return
 		}
@@ -84,18 +73,13 @@ func RateLimitMiddleware() gin.HandlerFunc {
 const maxBodyBytes = 1 << 20
 
 func BodySizeMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
-		c.Next()
-	}
+	return func(c *gin.Context) { c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes); c.Next() }
 }
 
 func main() {
 	_ = godotenv.Load()
-	port := os.Getenv("PORT")
-	if port == "" { port = "8080" }
-	env := os.Getenv("ENV")
-	if env == "production" { gin.SetMode(gin.ReleaseMode) }
+	port := os.Getenv("PORT"); if port == "" { port = "8080" }
+	env := os.Getenv("ENV"); if env == "production" { gin.SetMode(gin.ReleaseMode) }
 
 	dataEngineURL := getDataEngineURL()
 	if dataEngineURL == "" { log.Fatal("DATA_ENGINE_URL is not set — cannot start") }
@@ -103,6 +87,8 @@ func main() {
 	defer CloseDB()
 	log.Printf("✓ Database connected")
 	log.Printf("✓ Data engine: %s", dataEngineURL)
+	initConduit()
+	if prexusConduit != nil { log.Printf("✓ Conduit MCP integration configured") } else { log.Printf("• Conduit MCP integration not configured (optional)") }
 
 	allowedOrigins := getAllowedOrigins()
 	log.Printf("✓ CORS origins: %v", allowedOrigins)
@@ -110,19 +96,11 @@ func main() {
 	defer cancel()
 	go cleanupLimiters(ctx)
 
-	r := gin.New()
-	r.Use(gin.Recovery())
-	r.Use(RequestID())
-	r.Use(BodySizeMiddleware())
-	r.Use(requestLogger())
-
+	r := gin.New(); r.Use(gin.Recovery()); r.Use(RequestID()); r.Use(BodySizeMiddleware()); r.Use(requestLogger())
 	if tp := os.Getenv("TRUSTED_PROXIES"); tp != "" {
 		if err := r.SetTrustedProxies(strings.Split(tp, ",")); err != nil { log.Fatalf("Invalid TRUSTED_PROXIES: %v", err) }
 		log.Printf("✓ Trusted proxies: %s", tp)
-	} else {
-		_ = r.SetTrustedProxies(nil)
-		log.Printf("✓ Trusted proxies: none (direct connections only)")
-	}
+	} else { _ = r.SetTrustedProxies(nil); log.Printf("✓ Trusted proxies: none (direct connections only)") }
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
@@ -133,16 +111,7 @@ func main() {
 		MaxAge: 12 * time.Hour,
 	}))
 
-	// ── Public Routes ─────────────────────────────────────
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"service": "prexus-api-gateway",
-			"status": "ok",
-			"version": VERSION,
-			"health": "/health",
-			"docs": "API gateway endpoints are documented by the service contract",
-		})
-	})
+	r.GET("/", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"service": "prexus-api-gateway", "status": "ok", "version": VERSION, "health": "/health", "docs": "API gateway endpoints are documented by the service contract"}) })
 	r.GET("/health", RateLimitMiddleware(), handleHealth)
 	r.POST("/register", RateLimitMiddleware(), handleRegister)
 	r.POST("/login", RateLimitMiddleware(), handleLogin)
@@ -158,28 +127,24 @@ func main() {
 		auth.POST("/risk/portfolio", RequirePermission("risk:run"), proxyToDataEngine("/risk/portfolio"))
 		auth.POST("/risk/stress-test", RequirePermission("risk:run"), proxyToDataEngine("/risk/stress-test"))
 		auth.GET("/risk/health", RequirePermission("risk:run"), proxyToDataEngineGET("/risk/health"))
-
 		auth.GET("/sources", RequirePermission("risk:run"), proxyToDataEngineGET("/sources"))
 		auth.GET("/lake/stats", RequirePermission("risk:run"), proxyToDataEngineGET("/lake/stats"))
 		auth.GET("/lake/files", RequirePermission("risk:run"), proxyToDataEngineGET("/lake/files"))
-
 		auth.POST("/chat", RateLimitMiddleware(), RequirePermission("risk:run"), proxyToDataEngine("/chat"))
 		auth.POST("/claude", RateLimitMiddleware(), RequirePermission("risk:run"), handleClaude)
 		auth.POST("/analyze", RateLimitMiddleware(), RequirePermission("risk:run"), proxyToDataEngine("/analyze"))
 
+		auth.GET("/conduit/tools", RequirePermission("conduit:read"), handleConduitTools)
 		auth.GET("/me", handleGetMe)
 		auth.PUT("/me", handleUpdateMe)
 	}
 
 	log.Printf("🚀 Prexus API Gateway v%s running on :%s (env=%s)", VERSION, port, env)
 	srv := &http.Server{Addr: ":" + port, Handler: r}
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed { log.Fatalf("Server error: %v", err) }
-	}()
+	go func() { if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed { log.Fatalf("Server error: %v", err) } }()
 	<-ctx.Done()
 	log.Println("Shutting down gracefully…")
-	shutCtx, shutCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer shutCancel()
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), 15*time.Second); defer shutCancel()
 	if err := srv.Shutdown(shutCtx); err != nil { log.Printf("Graceful shutdown error: %v", err) }
 	log.Println("Server stopped.")
 }
@@ -188,34 +153,22 @@ func handleClaude(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
 	var req struct { Message string `json:"message" binding:"required"`; Model string `json:"model"` }
 	if err := c.ShouldBindJSON(&req); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()}); return }
-	model := strings.TrimSpace(req.Model)
-	if model == "" { model = defaultModel }
-	if _, ok := allowedModels[model]; !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported model", "allowed": getAllowedModelList()})
-		return
-	}
-	userID, _ := c.Get("user_id")
-	reqID, _ := c.Get("request_id")
+	model := strings.TrimSpace(req.Model); if model == "" { model = defaultModel }
+	if _, ok := allowedModels[model]; !ok { c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported model", "allowed": getAllowedModelList()}); return }
+	userID, _ := c.Get("user_id"); reqID, _ := c.Get("request_id")
 	log.Printf("[claude] req=%v user=%v model=%s ip=%s msg_len=%d", reqID, userID, model, c.ClientIP(), len(req.Message))
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second); defer cancel()
 	reply, err := AnalyzeProbability(ctx, req.Message, model)
 	if err != nil { log.Printf("[claude] error req=%v user=%v: %v", reqID, userID, err); c.JSON(http.StatusInternalServerError, gin.H{"error": "AI inference failed"}); return }
 	c.JSON(http.StatusOK, gin.H{"reply": reply})
 }
 
-func handleHealth(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "prexus-api-gateway", "version": VERSION, "timestamp": time.Now().UTC().Format(time.RFC3339)})
-}
+func handleHealth(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "prexus-api-gateway", "version": VERSION, "timestamp": time.Now().UTC().Format(time.RFC3339)}) }
 
 func requestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		start := time.Now()
-		c.Next()
-		latency := time.Since(start)
-		userID, exists := c.Get("user_id")
-		if !exists { userID = "anonymous" }
-		reqID, _ := c.Get("request_id")
+		start := time.Now(); c.Next(); latency := time.Since(start)
+		userID, exists := c.Get("user_id"); if !exists { userID = "anonymous" }; reqID, _ := c.Get("request_id")
 		log.Printf("[%d] %s %s req=%v user=%v ip=%s latency=%v", c.Writer.Status(), c.Request.Method, c.Request.URL.Path, reqID, userID, c.ClientIP(), latency)
 	}
 }
@@ -223,26 +176,12 @@ func requestLogger() gin.HandlerFunc {
 func getAllowedOrigins() []string {
 	raw := os.Getenv("ALLOWED_ORIGINS")
 	if raw == "" { log.Println("⚠️  ALLOWED_ORIGINS not set — defaulting to localhost (dev only)"); return []string{"http://localhost:3000", "http://localhost:5173"} }
-	origins := []string{}
-	for _, o := range strings.Split(raw, ",") { o = strings.TrimSpace(o); if o != "" { origins = append(origins, o) } }
-	return origins
+	origins := []string{}; for _, o := range strings.Split(raw, ",") { o = strings.TrimSpace(o); if o != "" { origins = append(origins, o) } }; return origins
 }
 
-func getAllowedModelList() []string {
-	list := make([]string, 0, len(allowedModels))
-	for m := range allowedModels { list = append(list, m) }
-	sort.Strings(list)
-	return list
-}
+func getAllowedModelList() []string { list := make([]string, 0, len(allowedModels)); for m := range allowedModels { list = append(list, m) }; sort.Strings(list); return list }
 
-func RequestID() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := fmt.Sprintf("%d", time.Now().UnixNano())
-		c.Set("request_id", id)
-		c.Writer.Header().Set("X-Request-ID", id)
-		c.Next()
-	}
-}
+func RequestID() gin.HandlerFunc { return func(c *gin.Context) { id := fmt.Sprintf("%d", time.Now().UnixNano()); c.Set("request_id", id); c.Writer.Header().Set("X-Request-ID", id); c.Next() } }
 
 func init() {
 	if os.Getenv("ENV") == "production" { return }
