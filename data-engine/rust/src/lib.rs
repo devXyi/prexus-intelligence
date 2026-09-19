@@ -13,7 +13,7 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 
-mod distributions;
+mod distribution;
 mod engine;
 mod mc_asset;
 mod stats;
