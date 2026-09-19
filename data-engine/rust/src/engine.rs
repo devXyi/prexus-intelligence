@@ -12,7 +12,7 @@ use rand::SeedableRng;
 use rand::rngs::SmallRng;
 use serde::{Deserialize, Serialize};
 
-use crate::distributions::{DistributionConfig, Sampler};
+use crate::distribution::{DistributionConfig, Sampler};
 use crate::stats::{RiskStats, compute_stats};
 
 /// Top-level simulation request — this is what Python sends as JSON.
