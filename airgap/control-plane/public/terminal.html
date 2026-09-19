@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Prexus Operator Console</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#070b12; color:#dce6f2; }
+    body { max-width: 960px; margin: 3rem auto; padding: 0 1rem; }
+    h1 { letter-spacing:.04em; } .notice { border-left:3px solid #55c2ff; padding:.75rem 1rem; background:#0d1725; }
+    label { display:block; margin:1rem 0 .35rem; } input, select, textarea, button { box-sizing:border-box; width:100%; padding:.7rem; border:1px solid #314256; background:#101a28; color:inherit; font:inherit; }
+    button { cursor:pointer; background:#166a9e; margin-top:1rem; } pre { white-space:pre-wrap; overflow-wrap:anywhere; padding:1rem; background:#0d1725; border:1px solid #1d2c3d; }
+  </style>
+</head>
+<body>
+  <h1>PREXUS / OPERATOR CONSOLE</h1>
+  <p class="notice">Air-gapped control plane. Actions are constrained to registered Meteorium nodes and are recorded in an audit ledger. This is not a shell.</p>
+  <label>Operator token <input id="token" type="password" autocomplete="off"></label>
+  <label>Node <select id="node"><option value="meteorium-ingest">Meteorium intake</option><option value="meteorium-score">Meteorium offline simulation</option><option value="audit-ledger">Audit verification</option></select></label>
+  <label>Command <select id="command"><option value="register-dataset">register-dataset</option><option value="offline-simulate">offline-simulate</option><option value="verify-ledger">verify-ledger</option></select></label>
+  <label>Input JSON <textarea id="input" rows="10">{"dataset":{"id":"climate-baseline-2026","sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","classification":"restricted"}}</textarea></label>
+  <button id="run">Run controlled action</button>
+  <pre id="output" aria-live="polite">Ready.</pre>
+  <script>
+    const node = document.querySelector('#node'), command = document.querySelector('#command'), input = document.querySelector('#input'), output = document.querySelector('#output');
+    const choices = { 'meteorium-ingest':['register-dataset'], 'meteorium-score':['offline-simulate'], 'audit-ledger':['verify-ledger'] };
+    const examples = {
+      'register-dataset': {dataset:{id:'climate-baseline-2026',sha256:'0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',classification:'restricted'}},
+      'offline-simulate': {asset:{id:'asset-001',value_usd:25000000},scenario:'baseline'},
+      'verify-ledger': {}
+    };
+    function updateCommands() { command.innerHTML = choices[node.value].map(value => `<option>${value}</option>`).join(''); updateInput(); }
+    function updateInput() { input.value = JSON.stringify(examples[command.value], null, 2); }
+    node.addEventListener('change', updateCommands); command.addEventListener('change', updateInput);
+    document.querySelector('#run').addEventListener('click', async () => {
+      try {
+        const response = await fetch(`/v1/nodes/${node.value}/runs`, { method:'POST', headers:{'content-type':'application/json','authorization':`Bearer ${document.querySelector('#token').value}`,'x-operator-id':'console-operator'}, body:JSON.stringify({command:command.value,input:JSON.parse(input.value)}) });
+        output.textContent = JSON.stringify(await response.json(), null, 2);
+      } catch (error) { output.textContent = `Request failed: ${error.message}`; }
+    });
+  </script>
+</body>
+</html>
