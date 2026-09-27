@@ -1,0 +1,29 @@
+services:
+  control-plane:
+    build:
+      context: .
+      dockerfile: airgap/Dockerfile
+    environment:
+      PREXUS_OPERATOR_TOKEN: ${PREXUS_OPERATOR_TOKEN:?set a high-entropy operator token before startup}
+      PREXUS_STATE_DIR: /var/lib/prexus
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - prexus-control-plane-state:/var/lib/prexus
+    networks:
+      - prexus-airgap
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+networks:
+  prexus-airgap:
+    internal: true
+
+volumes:
+  prexus-control-plane-state:
