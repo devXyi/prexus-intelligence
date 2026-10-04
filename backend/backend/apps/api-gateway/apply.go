@@ -313,9 +313,6 @@ func buildMIMEMessage(from string, to []string, subject, body string) string {
 		safeTo = append(safeTo, cleanLine(t, 254))
 	}
 	hdr.WriteString("To: " + strings.Join(safeTo, ", ") + "\r\n")
-	if addr, err := mail.ParseAddress(cleanLine(replyTo, 254)); err == nil {
-		hdr.WriteString("Reply-To: " + addr.Address + "\r\n")
-	}
 	hdr.WriteString("Subject: " + mime.QEncoding.Encode("UTF-8", cleanLine(subject, 200)) + "\r\n")
 	hdr.WriteString("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n")
 	hdr.WriteString("MIME-Version: 1.0\r\n")
