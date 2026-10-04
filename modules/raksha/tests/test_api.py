@@ -81,7 +81,8 @@ def test_clearance_gates_classified_objects(env):
     store.put_body(obj, Labels("operator-assets", classification=4, compartments=("SIGINT",), tlp="CLEAR"))
     seen = lambda who: [o["name"] for o in c.get("/v1/objects?type=vulnerability&limit=1000", headers=H(who)).json()["objects"]]
     assert "CVE-2030-0001" not in seen("analyst") and "CVE-2030-0001" not in seen("cleared")   # cleared lacks the SIGINT compartment
-    store.put_body({**obj, "id": obj["id"].replace("0", "1", 1)}, Labels("operator-assets", classification=4, tlp="CLEAR"))
+    replacement = "1" if obj["id"][-1] != "1" else "2"   # UUID hex digit; always produce a distinct STIX id
+    store.put_body({**obj, "id": obj["id"][:-1] + replacement}, Labels("operator-assets", classification=4, tlp="CLEAR"))
     assert "CVE-2030-0001" in seen("cleared") and "CVE-2030-0001" not in seen("analyst")
 
 
