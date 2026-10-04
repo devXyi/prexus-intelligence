@@ -220,7 +220,7 @@ fn asset_vulnerability(asset_type: &str) -> f64 {
 }
 
 #[pymodule]
-fn meteorium_engine(_py: Python, m: &PyModule) -> PyResult<()> {
+fn meteorium_engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scenario_multiplier, m)?)?;
     m.add_function(wrap_pyfunction!(asset_vulnerability, m)?)?;
     m.add_function(wrap_pyfunction!(simulate, m)?)?;
