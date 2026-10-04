@@ -83,7 +83,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 		UseCase: "line1\r\n.\r\nQUIT\r\nBcc: evil3@x.com",
 	}
 	req.normalize()
-	msg := buildMIMEMessage("from@prexus.in", []string{"to@prexus.in"}, applicationSubject("PRX-T"), applicationBody("PRX-T"))
+	msg := buildMIMEMessage("from@prexus.in", []string{"to@prexus.in"}, applicationSubject(req, "PRX-T"), applicationBody(req, "PRX-T"), req.Email)
 	m, err := mail.ReadMessage(strings.NewReader(msg))
 	if err != nil {
 		t.Fatalf("message must parse: %v", err)
@@ -109,11 +109,11 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 	if m2.Header.Get("Bcc") != "" {
 		t.Errorf("Bcc injected via direct call")
 	}
-	// Notification body intentionally contains no applicant-controlled content.
+	// Body survives QP round trip.
 	body := make([]byte, 4096)
 	n, _ := quotedprintable.NewReader(m.Body).Read(body)
-	if !strings.Contains(string(body[:n]), "PRX-T") || strings.Contains(string(body[:n]), "Flood") {
-		t.Errorf("unexpected notification body: %q", string(body[:n]))
+	if !strings.Contains(string(body[:n]), "Flood") && !strings.Contains(string(body[:n]), "line1") {
+		t.Errorf("body lost: %q", string(body[:n]))
 	}
 }
 

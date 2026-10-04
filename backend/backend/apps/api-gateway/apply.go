@@ -216,46 +216,20 @@ func notifyApplication(req ApplyRequest, ref string, persisted bool) {
 
 // ── Email composition ─────────────────────────────────────────────────────────
 
-func applicationSubject(req ApplyRequest, ref string) string {
-	return cleanLine(fmt.Sprintf("New Access Application - %s / %s [%s]", req.Module, req.Plan, ref), 200)
+func applicationSubject(ref string) string {
+	return "New PREXUS Access Application [" + cleanLine(ref, 64) + "]"
 }
 
-func applicationBody(req ApplyRequest, ref string) string {
-	useCase := req.UseCase
-	if useCase == "" {
-		useCase = "(not provided)"
-	}
+func applicationBody(ref string) string {
 	return fmt.Sprintf(`PREXUS INTELLIGENCE PLATFORM
-Access Application Received
------------------------------------------------
+New access application received.
 
-Reference:    %s
-Submitted:    %s UTC
+Reference: %s
 
-MODULE & PLAN
-  Module:     %s
-  Plan:       %s
-  Deployment: %s
-
-APPLICANT
-  Full Name:  %s
-  Job Title:  %s
-  Email:      %s
-
-ORGANIZATION
-  Name:       %s
-  Country:    %s
-  Type:       %s
-
-USE CASE / CONTEXT
-%s
-
------------------------------------------------
-Automated notification. Reply goes to the applicant.
-`, ref, time.Now().UTC().Format("2006-01-02 15:04:05"),
-		req.Module, req.Plan, req.Deployment,
-		req.Name, req.Title, req.Email,
-		req.Org, req.Country, req.OrgType, useCase)
+Review the application in the administrative system. Applicant-provided
+content is intentionally excluded from email notifications and remains in
+the application database.
+`, cleanLine(ref, 64))
 }
 
 func sendApplicationEmail(req ApplyRequest, ref string) error {
