@@ -83,7 +83,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 		UseCase: "line1\r\n.\r\nQUIT\r\nBcc: evil3@x.com",
 	}
 	req.normalize()
-	msg := buildMIMEMessage("from@prexus.in", []string{"to@prexus.in"}, applicationSubject(req, "PRX-T"), applicationBody(req, "PRX-T"), req.Email)
+	msg := buildMIMEMessage("from@prexus.in", []string{"to@prexus.in"}, applicationSubject(), applicationBody())
 	m, err := mail.ReadMessage(strings.NewReader(msg))
 	if err != nil {
 		t.Fatalf("message must parse: %v", err)
