@@ -229,7 +229,7 @@ export async function createApp(options = {}) {
     });
   }
 
-  function authenticate(req, res) {
+  async function authenticate(req, res) {
     const remote = req.socket.remoteAddress || "unknown";
     if (throttle.blocked(remote)) { json(res, 429, { error: "too many failed attempts — try again later" }); return null; }
     const h = req.headers.authorization || "";
@@ -239,7 +239,7 @@ export async function createApp(options = {}) {
     const now = Date.now();
     if (now - (deniedLogged.get(remote) || 0) > 60_000) {           // sampled: one audit line per source per minute
       deniedLogged.set(remote, now);
-      ledger.append({ actor: "anonymous", action: "auth.denied", resource: "api", metadata: { remote } }).catch(() => {});
+      try { await ledger.append({ actor: "anonymous", action: "auth.denied", resource: "api", metadata: { remote } }); } catch { /* never expose ledger internals to unauthenticated callers */ }
     }
     json(res, 401, { error: "operator authorization required" });
     return null;
@@ -256,7 +256,7 @@ export async function createApp(options = {}) {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:" });
         return res.end(terminalHtml);
       }
-      const principal = authenticate(req, res);
+      const principal = await authenticate(req, res);
       if (!principal) return;
       if (req.method === "GET" && url.pathname === "/v1/nodes") return json(res, 200, { nodes: NODE_CATALOG, principal, air_gapped_verified: egress.isolated === true, air_gapped_declared: true });
       if (req.method === "GET" && url.pathname === "/v1/ledger/head") return json(res, 200, ledger.signedHead());
