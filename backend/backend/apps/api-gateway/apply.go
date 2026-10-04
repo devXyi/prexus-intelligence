@@ -29,6 +29,7 @@ import (
 	"mime/quotedprintable"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/smtp"
 	"os"
 	"regexp"
