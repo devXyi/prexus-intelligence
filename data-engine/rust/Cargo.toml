@@ -5,12 +5,17 @@ edition     = "2021"
 description = "Meteorium Monte Carlo risk computation core — PyO3 bridge"
 authors     = ["Prexus Intelligence"]
 
+[features]
+default = []
+# maturin enables this (see pyproject.toml). Off for `cargo test`, which must link libpython.
+extension-module = ["pyo3/extension-module"]
+
 [lib]
 name       = "meteorium_engine"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3       = { version = "0.20", features = ["extension-module"] }
+pyo3       = { version = "0.20" }
 rand       = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 rayon      = "1.8"
@@ -21,4 +26,6 @@ serde_json = "1.0"
 opt-level     = 3
 lto           = true
 codegen-units = 1
-panic         = "abort"
+# NOTE: panic = "abort" was removed. With unwind (the default) PyO3 converts a Rust
+# panic into a Python `PanicException` for that one request; with abort a single
+# panic killed the whole Python process (every in-flight request).

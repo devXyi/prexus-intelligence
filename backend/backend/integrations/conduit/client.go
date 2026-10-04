@@ -96,9 +96,9 @@ type rpcResponse struct {
 }
 
 type rpcError struct {
-	Code int `json:"code"`
+	Code    int    `json:"code"`
 	Message string `json:"message"`
-	Data any `json:"data,omitempty"`
+	Data    any    `json:"data,omitempty"`
 }
 
 func (c *Client) nextID() uint64 { return atomic.AddUint64(&c.seq, 1) }
@@ -187,8 +187,8 @@ func decodeRPC(body []byte, contentType string) (rpcResponse, error) {
 func (c *Client) Initialize(ctx context.Context) (json.RawMessage, error) {
 	return c.call(ctx, "initialize", map[string]interface{}{
 		"protocolVersion": "2025-03-26",
-		"capabilities": map[string]interface{}{},
-		"clientInfo": map[string]string{"name": "prexus-intelligence", "version": "2.1.0"},
+		"capabilities":    map[string]interface{}{},
+		"clientInfo":      map[string]string{"name": "prexus-intelligence", "version": "2.1.0"},
 	})
 }
 

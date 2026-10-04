@@ -1,48 +1,79 @@
-# render.yaml
+# Render blueprint — v2 (audit fixes). Review plan names in the Render dashboard before applying:
+# they change over time, and the free tier is NOT suitable here (cold starts, expiring Postgres,
+# no private networking).
+#
+#  • gateway  : public Go service (JWT/RBAC, LLM gateway). Name kept so the existing URL keeps working.
+#  • engine   : PRIVATE service (`pserv`) — not reachable from the internet, only from the gateway.
+#               Built from data-engine/Dockerfile so the Rust core and H3 are actually installed
+#               (v1 ran `pip install` only → Python fallback + grid pseudo-index in production).
+#  • database : managed Postgres (the code speaks plain Postgres; the SUPABASE_* vars were unused).
+
+envVarGroups:
+  - name: prexus-shared-secrets
+    envVars:
+      - key: ENGINE_SECRET
+        generateValue: true          # one generated value, shared by gateway + engine
+
+databases:
+  - name: prexus-db
+    databaseName: prexus
+    user: prexus
+    plan: basic-256mb                # verify current plan names in the dashboard
 
 services:
-
   - type: web
     name: prexus-intelligence
     runtime: go
     rootDir: backend/backend
     buildCommand: go build -o app ./apps/api-gateway/
     startCommand: ./app
-    plan: free
+    plan: starter                    # always-on (free instances sleep → first request times out)
+    healthCheckPath: /health         # liveness only; /ready also checks the database
     envVars:
-      - key: PORT
-        value: "8080"
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
+      - fromGroup: prexus-shared-secrets
+      - key: ENV
+        value: production
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase: { name: prexus-db, property: connectionString }
+      - key: DATA_ENGINE_URL         # Render private-network host:port (the gateway adds http://)
+        fromService: { type: pserv, name: meteorium-engine, property: hostport }
+      - key: ALLOWED_ORIGINS
+        value: https://prexus.in,https://www.prexus.in
+      - key: TRUSTED_PROXIES         # all traffic arrives via Render's proxy; the container is not directly reachable
+        value: 0.0.0.0/0,::/0
+      - key: AI_DAILY_QUOTA
+        value: "100"
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: DATA_ENGINE_URL
-        fromService:
-          name: meteorium-engine
-          type: web
-          property: url
-      - key: ENGINE_SECRET
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: NOTIFY_EMAILS           # comma-separated; applications are stored in Postgres even if unset
         sync: false
 
-  - type: web
+  - type: pserv
     name: meteorium-engine
-    runtime: python
-    rootDir: data-engine/python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn layer6.api:app --host 0.0.0.0 --port $PORT
-    plan: free
+    runtime: docker
+    dockerfilePath: ./data-engine/Dockerfile
+    dockerContext: ./data-engine
+    plan: starter
+    healthCheckPath: /health
+    disk:                              # the engine's lake/feature store (v1 wrote to /tmp and lost it on every deploy)
+      name: engine-state
+      mountPath: /var/lib/meteorium
+      sizeGB: 5
     envVars:
-      - key: ENGINE_SECRET
-        sync: false
+      - fromGroup: prexus-shared-secrets
       - key: NASA_FIRMS_KEY
-        sync: false
-      - key: ALPHA_VANTAGE_KEY
         sync: false

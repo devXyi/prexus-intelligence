@@ -1,9 +1,16 @@
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-pydantic==2.7.1
-httpx==0.27.0
-python-dotenv==1.0.1
-tenacity==8.3.0
-apscheduler==3.10.4
-redis==5.0.4
-aiohttp>=3.9.0
+# Runtime dependencies for the Meteorium engine. Ranges (not 2024 pins) — CI runs pip-audit and
+# the test-suite against the newest releases; commit a lock file (pip-compile) for production images.
+fastapi>=0.111,<1
+uvicorn[standard]>=0.30,<1
+pydantic>=2.7,<3
+httpx>=0.27,<1
+python-dotenv>=1.0,<2
+tenacity>=8.3,<10
+apscheduler>=3.10,<4
+redis>=5.0,<7
+aiohttp>=3.9,<4
+numpy>=1.26,<3
+scipy>=1.11,<2
+h3>=4,<5
+# `meteorium_engine` (Rust Monte Carlo core) is built from ../rust with maturin — see ../Dockerfile.
+# Optional: blpapi (Bloomberg terminal licence required) is NOT installed by default.

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raksha"
+version = "0.1.0"
+description = "Raksha — Prexus threat & disruption intelligence (STIX 2.1 / TAXII 2.1, ABAC, air-gap ready)"
+requires-python = ">=3.10"
+dependencies = ["stix2>=3.0", "h3>=4", "numpy", "scipy", "fastapi", "pydantic>=2", "uvicorn", "prexus-core"]
+
+[tool.setuptools.packages.find]
+include = ["raksha*"]

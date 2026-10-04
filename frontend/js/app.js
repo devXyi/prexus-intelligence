@@ -258,27 +258,6 @@ function initCountUp() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   STAT FLICKER — ambient live-data feel
-   ═══════════════════════════════════════════════════════════ */
-function initStatFlicker() {
-  document.querySelectorAll('.hero-stat-val[data-count]').forEach(el => {
-    const base = el.dataset.count;
-    // Only flicker clean integer values (skip ms, ×, floats, K)
-    const m = base.match(/^(\d+)$/);
-    if (!m) return;
-    const num      = parseInt(m[1]);
-    const interval = 3500 + Math.random() * 3000;
-    setInterval(() => {
-      if (!document.hidden) {
-        const delta = Math.random() > .5 ? 1 : -1;
-        el.textContent = (num + delta).toString();
-        setTimeout(() => { el.textContent = base; }, 80);
-      }
-    }, interval);
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════
    MAGNETIC 3D TILT — cap-cards
    Lerp loop with will-change applied only during hover.
    cancelAnimationFrame on mouseleave prevents leaked loops.
@@ -456,5 +435,4 @@ document.addEventListener('DOMContentLoaded', () => {
   initCursor();
   initParallax();
   // Stat flicker deferred until after count-up animations settle
-  setTimeout(initStatFlicker, 1500);
 });

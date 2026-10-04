@@ -1,0 +1,128 @@
+{
+ "title": "SYNTHETIC FIXTURE \u2014 schema-faithful sample of the CISA KEV catalog",
+ "catalogVersion": "fixture",
+ "dateReleased": "2026-09-29T00:00:00.000Z",
+ "count": 8,
+ "vulnerabilities": [
+  {
+   "cveID": "CVE-2021-44228",
+   "vendorProject": "Apache",
+   "product": "Log4j2",
+   "vulnerabilityName": "Apache Log4j2 Remote Code Execution Vulnerability",
+   "dateAdded": "2021-12-10",
+   "shortDescription": "Illustrative description for CVE-2021-44228.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2021-12-10",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2023-34362",
+   "vendorProject": "Progress",
+   "product": "MOVEit Transfer",
+   "vulnerabilityName": "Progress MOVEit Transfer SQL Injection Vulnerability",
+   "dateAdded": "2023-06-02",
+   "shortDescription": "Illustrative description for CVE-2023-34362.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2023-06-02",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2021-34527",
+   "vendorProject": "Microsoft",
+   "product": "Windows Print Spooler",
+   "vulnerabilityName": "Microsoft Windows Print Spooler Remote Code Execution",
+   "dateAdded": "2021-11-03",
+   "shortDescription": "Illustrative description for CVE-2021-34527.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2021-11-03",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2023-4966",
+   "vendorProject": "Citrix",
+   "product": "NetScaler ADC and Gateway",
+   "vulnerabilityName": "Citrix NetScaler Sensitive Information Disclosure",
+   "dateAdded": "2023-10-18",
+   "shortDescription": "Illustrative description for CVE-2023-4966.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2023-10-18",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2024-3400",
+   "vendorProject": "Palo Alto Networks",
+   "product": "PAN-OS",
+   "vulnerabilityName": "Palo Alto Networks PAN-OS Command Injection",
+   "dateAdded": "2024-04-12",
+   "shortDescription": "Illustrative description for CVE-2024-3400.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2024-04-12",
+   "knownRansomwareCampaignUse": "Unknown",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2022-26134",
+   "vendorProject": "Atlassian",
+   "product": "Confluence Server and Data Center",
+   "vulnerabilityName": "Atlassian Confluence OGNL Injection",
+   "dateAdded": "2022-06-02",
+   "shortDescription": "Illustrative description for CVE-2022-26134.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2022-06-02",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2020-1472",
+   "vendorProject": "Microsoft",
+   "product": "Netlogon",
+   "vulnerabilityName": "Microsoft Netlogon Privilege Escalation",
+   "dateAdded": "2021-11-03",
+   "shortDescription": "Illustrative description for CVE-2020-1472.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2021-11-03",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  },
+  {
+   "cveID": "CVE-2021-26855",
+   "vendorProject": "Microsoft",
+   "product": "Exchange Server",
+   "vulnerabilityName": "Microsoft Exchange Server SSRF Vulnerability",
+   "dateAdded": "2021-11-03",
+   "shortDescription": "Illustrative description for CVE-2021-26855.",
+   "requiredAction": "Apply updates per vendor instructions.",
+   "dueDate": "2021-11-03",
+   "knownRansomwareCampaignUse": "Known",
+   "notes": "",
+   "cwes": [
+    "CWE-20"
+   ]
+  }
+ ]
+}

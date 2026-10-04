@@ -1,0 +1,10 @@
+{
+  "sequence": 5,
+  "head_hash": "4c3138f1d2bb63845f9d5c9a542ecc25f64a4fb016ca60134546b058a7a7775a",
+  "signed_at": "2026-10-01T03:31:42.422Z",
+  "key_id": "01d76f80afddb277",
+  "alg": "Ed25519",
+  "signature": "eUxuaz6aUbU74VQyXPUDMKABKlcPNOac98LpHHzMGhrH31dVkDAEBu24MFIt9iVa8u9btAYlgnfnrSK0DnWRDw==",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA+NwXMZqf4BWQgdHEPofLprR5iyJ1ZbN1MdprTHNB3Ww=\n-----END PUBLIC KEY-----\n",
+  "signed": true
+}

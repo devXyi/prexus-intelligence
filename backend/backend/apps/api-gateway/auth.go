@@ -211,12 +211,12 @@ func jwtSecret() []byte {
 func issueToken(userID string, email, role string) (string, error) {
 	claims := Claims{
 		UserID: userID,
-		Email: email,
-		Role: role,
+		Email:  email,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			Issuer: "prexus-gateway",
+			Issuer:    "prexus-gateway",
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret())

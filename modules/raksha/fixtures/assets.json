@@ -1,0 +1,59 @@
+[
+ {
+  "id": "port-alpha",
+  "name": "Port Alpha (synthetic)",
+  "asset_type": "port",
+  "criticality": 5,
+  "lat": 17.7,
+  "lon": 83.3,
+  "technologies": [
+   "Microsoft Exchange Server",
+   "Citrix NetScaler"
+  ],
+  "owner_org": "operator-1"
+ },
+ {
+  "id": "grid-beta",
+  "name": "Grid Substation Beta (synthetic)",
+  "asset_type": "power",
+  "criticality": 5,
+  "lat": 17.75,
+  "lon": 83.2,
+  "technologies": [
+   "Apache Log4j2"
+  ],
+  "owner_org": "operator-1"
+ },
+ {
+  "id": "telecom-gamma",
+  "name": "Telecom Hub Gamma (synthetic)",
+  "asset_type": "telecom",
+  "criticality": 4,
+  "lat": 17.65,
+  "lon": 83.25,
+  "technologies": [
+   "Palo Alto Networks PAN-OS"
+  ],
+  "owner_org": "operator-1"
+ },
+ {
+  "id": "refinery-delta",
+  "name": "Refinery Delta (synthetic)",
+  "asset_type": "energy",
+  "criticality": 5,
+  "lat": 17.62,
+  "lon": 83.15,
+  "technologies": [],
+  "owner_org": "operator-1"
+ },
+ {
+  "id": "depot-epsilon",
+  "name": "Inland Depot Epsilon (synthetic)",
+  "asset_type": "logistics",
+  "criticality": 2,
+  "lat": 22.57,
+  "lon": 88.36,
+  "technologies": [],
+  "owner_org": "operator-1"
+ }
+]

@@ -1,58 +1,44 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
+import { call, run, start, tmp } from "./testkit.mjs";
 import { createApp } from "./server.mjs";
 
-async function start(stateDir) {
-  const app = await createApp({ stateDir, operatorToken: "test-operator-token" });
-  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
-  const { port } = app.server.address();
-  return { ...app, baseUrl: `http://127.0.0.1:${port}` };
-}
-
-function request(baseUrl, path, options = {}) {
-  return fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers: { authorization: "Bearer test-operator-token", "x-operator-id": "test-suite", ...(options.headers || {}) },
-  });
-}
-
 test("air-gap node lifecycle is authorized, auditable, and persistent", async (t) => {
-  const stateDir = await mkdtemp(join(tmpdir(), "prexus-control-plane-"));
-  const first = await start(stateDir);
-  t.after(() => first.server.close());
-
-  const rejected = await fetch(`${first.baseUrl}/v1/nodes`);
-  assert.equal(rejected.status, 401);
-
-  const nodes = await request(first.baseUrl, "/v1/nodes");
+  const app = await start();
+  t.after(() => app.close());
+  assert.equal((await call(app, "/v1/nodes", { as: null })).status, 401);
+  const nodes = await call(app, "/v1/nodes");
   assert.equal(nodes.status, 200);
-  assert.equal((await nodes.json()).nodes.length, 3);
+  const body = await nodes.json();
+  assert.equal(body.nodes.length, 5);
+  assert.deepEqual(body.principal, { id: "alice", role: "operator" });
 
-  const ingestion = await request(first.baseUrl, "/v1/nodes/meteorium-ingest/runs", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ command: "register-dataset", input: { dataset: { id: "fixture-1", sha256: "a".repeat(64), classification: "restricted" } } }),
-  });
-  assert.equal(ingestion.status, 201);
+  const ing = await run(app, "meteorium-ingest", "register-dataset", { dataset: { id: "fixture-1", sha256: "a".repeat(64), classification: "restricted" } });
+  assert.equal(ing.status, 201);
+  const sim = await run(app, "meteorium-score", "offline-simulate", { asset: { id: "asset-1", value_usd: 5000000 }, scenario: "baseline" });
+  assert.equal(sim.status, 201);
+  const simRun = (await sim.json()).run;
+  assert.equal(simRun.output.model_status, "demonstration-only");
+  const led = await run(app, "audit-ledger", "verify-ledger", {});
+  assert.equal((await led.json()).run.output.valid, true);
+  assert.equal((await (await call(app, `/v1/runs/${simRun.id}`)).json()).run.id, simRun.id);
+});
 
-  const simulation = await request(first.baseUrl, "/v1/nodes/meteorium-score/runs", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ command: "offline-simulate", input: { asset: { id: "asset-1", value_usd: 5000000 }, scenario: "baseline" } }),
-  });
-  assert.equal(simulation.status, 201);
-  const simulationRun = (await simulation.json()).run;
-  assert.equal(simulationRun.output.data_mode, "offline-input-only");
-  assert.equal(simulationRun.output.model_status, "demonstration-only");
+test("state and ledger persist across restarts", async () => {
+  const a = await start();
+  await run(a, "meteorium-ingest", "register-dataset", { dataset: { id: "d1", sha256: "b".repeat(64), classification: "internal" } });
+  const seq = a.ledger.seq;
+  await a.close();
+  const b = await start({ stateDir: a.stateDir });
+  assert.equal(b.store.state.datasets.length, 1);
+  assert.ok(b.ledger.seq > seq, "restart appends a controlplane.start event");
+  assert.equal((await b.ledger.verify()).valid, true);
+  await b.close();
+});
 
-  const ledger = await request(first.baseUrl, "/v1/nodes/audit-ledger/runs", {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ command: "verify-ledger", input: {} }),
-  });
-  assert.equal(ledger.status, 201);
-  assert.equal((await ledger.json()).run.output.valid, true);
-
-  const detail = await request(first.baseUrl, `/v1/runs/${simulationRun.id}`);
-  assert.equal(detail.status, 200);
-  assert.equal((await detail.json()).run.id, simulationRun.id);
+test("production refuses weak configuration", async () => {
+  const dir = await tmp();
+  await assert.rejects(createApp({ stateDir: dir, production: true, operatorToken: "x".repeat(40) }), /shared operator token/);
+  await assert.rejects(createApp({ stateDir: dir, production: true, operatorToken: "x".repeat(40), allowSharedToken: true }), /LEDGER_KEY/);
+  await assert.rejects(createApp({ stateDir: dir }), /PREXUS_OPERATORS_FILE/);
 });

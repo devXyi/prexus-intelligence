@@ -1,0 +1,23 @@
+# build output
+data-engine/rust/target/
+*.so
+*.whl
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+# node
+node_modules/
+# runtime state & secrets (never commit)
+airgap/control-plane/state/
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+!packages/prexus_core/tests/fixtures/node_made/*.pem
+!packages/prexus_core/tests/fixtures/node_made/**/*.pem

@@ -21,6 +21,7 @@ from typing import Optional
 
 from core.config import STORE_DIR, H3_RESOLUTION_ASSET, H3_RESOLUTION_REGIONAL
 from core.models import ProcessedTile, TelemetryRecord
+from core import h3compat
 
 logger = logging.getLogger("meteorium.layer3")
 
@@ -104,7 +105,7 @@ class GeospatialPreprocessor:
     def lat_lon_to_h3(self, lat: float, lon: float, resolution: int = H3_RESOLUTION_ASSET) -> str:
         """Convert lat/lon to H3 cell index string."""
         if H3_AVAILABLE:
-            return h3.geo_to_h3(lat, lon, resolution)
+            return h3compat.latlng_to_cell(lat, lon, resolution)
         # Fallback: grid-based pseudo-index
         grid_lat = round(lat / 0.1) * 0.1
         grid_lon = round(lon / 0.1) * 0.1
@@ -113,13 +114,13 @@ class GeospatialPreprocessor:
     def h3_neighbors(self, h3_index: str, k: int = 1) -> list[str]:
         """Get H3 neighbors within k rings."""
         if H3_AVAILABLE:
-            return list(h3.k_ring(h3_index, k))
+            return h3compat.grid_disk(h3_index, k)
         return [h3_index]   # fallback: just self
 
     def h3_to_lat_lon(self, h3_index: str) -> tuple[float, float]:
         """Get center coordinates of an H3 cell."""
         if H3_AVAILABLE and not h3_index.startswith("grid_"):
-            return h3.h3_to_geo(h3_index)
+            return h3compat.cell_to_latlng(h3_index)
         # Parse grid fallback
         parts = h3_index.replace("grid_", "").split("_")
         return float(parts[0]), float(parts[1])
