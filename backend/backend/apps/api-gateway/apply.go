@@ -216,20 +216,18 @@ func notifyApplication(req ApplyRequest, ref string, persisted bool) {
 
 // ── Email composition ─────────────────────────────────────────────────────────
 
-func applicationSubject(ref string) string {
-	return "New PREXUS Access Application [" + cleanLine(ref, 64) + "]"
+func applicationSubject() string {
+	return "New PREXUS Access Application"
 }
 
-func applicationBody(ref string) string {
+func applicationBody() string {
 	return fmt.Sprintf(`PREXUS INTELLIGENCE PLATFORM
-New access application received.
-
-Reference: %s
+New access application received at %s UTC.
 
 Review the application in the administrative system. Applicant-provided
 content is intentionally excluded from email notifications and remains in
 the application database.
-`, cleanLine(ref, 64))
+`, time.Now().UTC().Format("2006-01-02 15:04:05"))
 }
 
 func sendApplicationEmail(req ApplyRequest, ref string) error {
@@ -246,7 +244,7 @@ func sendApplicationEmail(req ApplyRequest, ref string) error {
 		return fmt.Errorf("NOTIFY_EMAILS not configured")
 	}
 
-	msg := buildMIMEMessage(user, recipients, applicationSubject(ref), applicationBody(ref))
+	msg := buildMIMEMessage(user, recipients, applicationSubject(), applicationBody())
 
 	addr := net.JoinHostPort(host, port)
 	dialer := &net.Dialer{Timeout: smtpDialTimeout}

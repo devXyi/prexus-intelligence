@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -43,6 +44,15 @@ def load_trusted_keys(directory: str | Path) -> Dict[str, str]:
     return keys
 
 
+def safe_bundle_file(root: Path, rel: str) -> Path:
+    """Return a canonical descendant of root; reject traversal and symlink escapes."""
+    base = os.path.realpath(str(root))
+    candidate = os.path.realpath(os.path.join(base, rel))
+    if candidate == base or not candidate.startswith(base + os.sep):
+        raise BundleError(f"unsafe file path: {rel!r}", 403)
+    return Path(candidate)
+
+
 def _sha256_file(p: Path) -> str:
     h = hashlib.sha256()
     with open(p, "rb") as f:
@@ -61,7 +71,7 @@ def build_bundle(out_root: str | Path, name: str, version: int, files: Dict[str,
     for rel, content in sorted(files.items()):
         if rel.startswith("/") or ".." in rel.split("/") or "\\" in rel or "\0" in rel:
             raise BundleError(f"unsafe file path: {rel!r}")
-        p = root / "files" / rel
+        p = safe_bundle_file(root / "files", rel)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(content)
         e = {"path": rel, "sha256": hashlib.sha256(content).hexdigest(), "size": len(content), "classification": classification}
@@ -128,11 +138,11 @@ def verify_bundle_dir(root: str | Path, rel: str, trusted: Dict[str, str],
     files_root = (d / "files").resolve()
     for f in manifest["files"]:
         try:
-            p = (d / "files" / f["path"]).resolve(strict=True)
-        except FileNotFoundError:
-            problems.append(f"{f['path']}: missing"); continue
-        if files_root not in p.parents:
+            p = safe_bundle_file(files_root, f["path"])
+        except BundleError:
             problems.append(f"{f['path']}: outside bundle"); continue
+        if not p.exists():
+            problems.append(f"{f['path']}: missing"); continue
         if p.stat().st_size != f["size"]:
             problems.append(f"{f['path']}: size {p.stat().st_size} != {f['size']}"); continue
         if _sha256_file(p) != f["sha256"]:
