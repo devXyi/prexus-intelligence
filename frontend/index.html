@@ -598,9 +598,9 @@ footer{padding:44px;border-top:1px solid var(--wire-soft);background:var(--deep)
 </footer>
 
 <!-- ════════════ SCRIPTS ════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" integrity="sha512-16esztaSRplJROstbIIdwX3N97V1+pZvV33ABoG1H2OyTttBxEGkTsoIVsiP1iaTtM8b3+hu2kB6pQ4Clr5yug==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" integrity="sha512-Ic9xkERjyZ1xgJ5svx3y0u3xrvfT/uPkV99LBwe68xjy/mGtO+4eURHZBW2xW4SZbFrF1Tf090XqB+EVgXnVjw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 'use strict';
 
@@ -740,11 +740,19 @@ class IntelGlobe {
 function splitH1() {
   document.querySelectorAll('.h1-line-inner').forEach(el => {
     const isStroke = el.classList.contains('h1-stroke');
-    el.innerHTML = el.textContent.trim().split('').map(ch => {
-      if (ch === ' ') return '<span class="h1-space"> </span>';
-      const cls = isStroke ? 'h1-char h1-stroke-char' : 'h1-char';
-      return `<span class="${cls}">${ch}</span>`;
-    }).join('');
+    const text = el.textContent.trim();
+    const fragment = document.createDocumentFragment();
+    for (const ch of text) {
+      const span = document.createElement('span');
+      if (ch === ' ') {
+        span.className = 'h1-space';
+      } else {
+        span.className = isStroke ? 'h1-char h1-stroke-char' : 'h1-char';
+        span.textContent = ch;
+      }
+      fragment.appendChild(span);
+    }
+    el.replaceChildren(fragment);
   });
   document.querySelectorAll('.h1-stroke-char').forEach(span => {
     span.style.cssText = 'color:transparent;-webkit-text-stroke:1.5px rgba(232,217,200,.4)';

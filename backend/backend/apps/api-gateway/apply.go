@@ -29,7 +29,6 @@ import (
 	"mime/quotedprintable"
 	"net"
 	"net/http"
-	"net/mail"
 	"net/smtp"
 	"os"
 	"regexp"
@@ -272,7 +271,7 @@ func sendApplicationEmail(req ApplyRequest, ref string) error {
 		return fmt.Errorf("NOTIFY_EMAILS not configured")
 	}
 
-	msg := buildMIMEMessage(user, recipients, applicationSubject(req, ref), applicationBody(req, ref), req.Email)
+	msg := buildMIMEMessage(user, recipients, applicationSubject(ref), applicationBody(ref))
 
 	addr := net.JoinHostPort(host, port)
 	dialer := &net.Dialer{Timeout: smtpDialTimeout}
@@ -331,7 +330,7 @@ func sendApplicationEmail(req ApplyRequest, ref string) error {
 
 // buildMIMEMessage composes an injection-safe message. subject/body are cleaned
 // by the caller; every header value is additionally forced onto one line here.
-func buildMIMEMessage(from string, to []string, subject, body, replyTo string) string {
+func buildMIMEMessage(from string, to []string, subject, body string) string {
 	var hdr strings.Builder
 	hdr.WriteString("From: Prexus Applications <" + cleanLine(from, 254) + ">\r\n")
 	safeTo := make([]string, 0, len(to))

@@ -161,7 +161,7 @@ function _worldMap(assets) {
   }).join('');
   const dots = assets.map(a=>{
     const [x,y]=proj(a.lat,a.lon);
-    const c=riskColor(a.cr).replace('var(--red)','#EF4444').replace('var(--amber)','#F59E0B').replace('var(--cobalt)','#0EA5E9').replace('var(--green)','#10B981').replace('#F97316','#F97316');
+    const c=riskColor(a.cr).replace('var(--red)','#EF4444').replace('var(--amber)','#F59E0B').replace('var(--cobalt)','#0EA5E9').replace('var(--green)','#10B981');
     return `<g style="cursor:pointer" data-asset="${a.id}" class="dash-asset-dot">
       <circle cx="${x}" cy="${y}" r="10" fill="url(#dg-${a.id})" opacity=".4"/>
       <circle cx="${x}" cy="${y}" r="4.5" fill="${c}" stroke="rgba(0,0,0,.5)" stroke-width=".8" style="filter:drop-shadow(0 0 5px ${c})"/>
