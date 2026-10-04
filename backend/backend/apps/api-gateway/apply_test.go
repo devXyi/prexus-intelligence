@@ -83,7 +83,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 		UseCase: "line1\r\n.\r\nQUIT\r\nBcc: evil3@x.com",
 	}
 	req.normalize()
-	msg := buildMIMEMessage("from@prexus.in", []string{"to@prexus.in"}, applicationSubject(req, "PRX-T"), applicationBody(req, "PRX-T"), req.Email)
+	msg := buildMIMEMessage("from@prexus.in", []string{"to@prexus.in"}, applicationSubject("PRX-T"), applicationBody("PRX-T"))
 	m, err := mail.ReadMessage(strings.NewReader(msg))
 	if err != nil {
 		t.Fatalf("message must parse: %v", err)
@@ -101,7 +101,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 		t.Errorf("subject has newline: %q", subj)
 	}
 	// Direct call with dirty inputs must also be safe.
-	raw := buildMIMEMessage("f@x.io", []string{"t@x.io\r\nBcc: e@x.io"}, "hi\r\nBcc: evil@x.com", "body", "r@x.io\r\nBcc: e@x.io")
+	raw := buildMIMEMessage("f@x.io\r\nBcc: e@x.io", []string{"t@x.io\r\nBcc: e@x.io"}, "hi\r\nBcc: evil@x.com", "body")
 	m2, err := mail.ReadMessage(strings.NewReader(raw))
 	if err != nil {
 		t.Fatal(err)
