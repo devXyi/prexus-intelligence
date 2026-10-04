@@ -24,11 +24,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: "1.22" }
-      - run: go mod download
+        with: { go-version: "1.22", cache: false }
+      - name: Resolve Go module checksums
+        run: go mod tidy
+        working-directory: backend/backend
       - run: go vet ./...
-      - run: go test ./... -race -count=1          # includes the frontend↔route contract test (needs the whole repo checked out)
+        working-directory: backend/backend
+      - run: go test ./... -race -count=1
+        working-directory: backend/backend
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+        working-directory: backend/backend
 
   engine:
     name: Python engine (Rust core + tests + pip-audit)
@@ -52,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.85.0
       - run: cargo test --verbose
-      - run: cargo install cargo-audit --locked && cargo audit
+      - run: cargo install cargo-audit --locked --version 0.22.1 && cargo audit
 
   platform:
     name: prexus_core + Raksha (needs Node for cross-language tests)
