@@ -101,7 +101,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 		t.Errorf("subject has newline: %q", subj)
 	}
 	// Direct call with dirty inputs must also be safe.
-	raw := buildMIMEMessage("f@x.io", []string{"t@x.io\r\nBcc: e@x.io"}, "hi\r\nBcc: evil@x.com", "body", "r@x.io\r\nBcc: e@x.io")
+	raw := buildMIMEMessage("f@x.io", []string{"t@x.io\r\nBcc: e@x.io"}, "hi\r\nBcc: evil@x.com", "body")
 	m2, err := mail.ReadMessage(strings.NewReader(raw))
 	if err != nil {
 		t.Fatal(err)
