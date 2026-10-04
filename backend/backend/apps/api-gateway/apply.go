@@ -216,18 +216,20 @@ func notifyApplication(req ApplyRequest, ref string, persisted bool) {
 
 // ── Email composition ─────────────────────────────────────────────────────────
 
-func applicationSubject() string {
-	return "New PREXUS Access Application"
+func applicationSubject(ref string) string {
+	return "New PREXUS Access Application [" + cleanLine(ref, 64) + "]"
 }
 
-func applicationBody() string {
+func applicationBody(ref string) string {
 	return fmt.Sprintf(`PREXUS INTELLIGENCE PLATFORM
-New access application received at %s UTC.
+New access application received.
+
+Reference: %s
 
 Review the application in the administrative system. Applicant-provided
 content is intentionally excluded from email notifications and remains in
 the application database.
-`, time.Now().UTC().Format("2006-01-02 15:04:05"))
+`, cleanLine(ref, 64))
 }
 
 func sendApplicationEmail(req ApplyRequest, ref string) error {
@@ -244,7 +246,7 @@ func sendApplicationEmail(req ApplyRequest, ref string) error {
 		return fmt.Errorf("NOTIFY_EMAILS not configured")
 	}
 
-	msg := buildMIMEMessage(user, recipients, applicationSubject(), applicationBody())
+	msg := buildMIMEMessage(user, recipients, applicationSubject(ref), applicationBody(ref))
 
 	addr := net.JoinHostPort(host, port)
 	dialer := &net.Dialer{Timeout: smtpDialTimeout}
@@ -311,6 +313,9 @@ func buildMIMEMessage(from string, to []string, subject, body string) string {
 		safeTo = append(safeTo, cleanLine(t, 254))
 	}
 	hdr.WriteString("To: " + strings.Join(safeTo, ", ") + "\r\n")
+	if addr, err := mail.ParseAddress(cleanLine(replyTo, 254)); err == nil {
+		hdr.WriteString("Reply-To: " + addr.Address + "\r\n")
+	}
 	hdr.WriteString("Subject: " + mime.QEncoding.Encode("UTF-8", cleanLine(subject, 200)) + "\r\n")
 	hdr.WriteString("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n")
 	hdr.WriteString("MIME-Version: 1.0\r\n")
