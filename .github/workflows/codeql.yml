@@ -103,3 +103,10 @@ jobs:
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
+    - name: Diagnostic — list PR CodeQL alerts
+      if: always() && matrix.language == 'go'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?pr=${{ github.event.pull_request.number }}&state=open&per_page=100" \
+          --jq '.[] | {rule: .rule.id, severity: .rule.security_severity_level, desc: .rule.description, file: .most_recent_instance.location.path, line: .most_recent_instance.location.start_line, ref: .most_recent_instance.ref, message: .most_recent_instance.message.text}'
