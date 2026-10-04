@@ -24,7 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: "1.22", cache-dependency-path: backend/backend/go.sum }
+        with: { go-version: "1.22" }
+      - run: go mod download
       - run: go vet ./...
       - run: go test ./... -race -count=1          # includes the frontend↔route contract test (needs the whole repo checked out)
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
@@ -62,7 +63,7 @@ jobs:
         with: { node-version: 22 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install ./packages/prexus_core ./modules/raksha pytest pip-audit
+      - run: pip install ./packages/prexus_core ./modules/raksha pytest pip-audit httpx2
       - run: python -m pytest packages/prexus_core modules/raksha -q
       - run: pip-audit
 
