@@ -203,7 +203,18 @@ def create_app(settings: Settings, *, clock=None) -> FastAPI:
         if not settings.import_dir or not trusted:
             raise HTTPException(503, "bundle import not configured (RAKSHA_IMPORT_DIR / RAKSHA_TRUST_DIR)")
         try:
-            return import_bundle(store, ledger, settings.import_dir, req.path, trusted, actor=subject.id)
+            return import_bundle(
+                store,
+                ledger,
+                settings.import_dir,
+                pbundle.resolve_trusted_path(settings.import_dir, req.path, strict=True).relative_to(
+                    Path(settings.import_dir).resolve()
+                ).as_posix(),
+                trusted,
+                actor=subject.id,
+            )
+        except FileNotFoundError:
+            raise HTTPException(404, "bundle path not found")
         except BundleError as e:
             ledger.append(subject.id, "raksha.bundle.rejected", req.path[:64], {"status": e.status})
             raise HTTPException(e.status, str(e))

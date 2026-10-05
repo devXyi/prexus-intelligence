@@ -94,3 +94,25 @@ def test_bundle_roundtrip_and_attacks(tmp_path):
         verify_bundle_dir(imp, "../../etc", keys)
     with pytest.raises(BundleError):
         build_bundle(imp, "bad-pack", 1, {"../evil": b"x"}, s)
+
+def test_bundle_path_traversal_and_symlink_escape_rejected(tmp_path):
+    s = Signer.generate()
+    imp = tmp_path / "imp"
+    trust = tmp_path / "trust"
+    trust.mkdir()
+    (trust / "k.pem").write_text(s.public_pem)
+    keys = load_trusted_keys(trust)
+
+    root = build_bundle(imp, "safe-pack", 1, {"x.txt": b"ok"}, s)
+
+    with pytest.raises(BundleError):
+        verify_bundle_dir(imp, "../safe-pack", keys)
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "manifest.json").write_text("{}")
+    link = imp / "escape"
+    link.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(BundleError):
+        verify_bundle_dir(imp, "escape", keys)
