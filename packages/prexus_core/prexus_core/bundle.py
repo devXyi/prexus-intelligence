@@ -21,6 +21,7 @@ from .ledger import Signer, key_id_of_public
 FORMAT = "prexus-bundle/1"
 CLASSES = ("internal", "restricted")
 _NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
+_BUNDLE_DIR = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}-v[1-9][0-9]*$")
 
 
 class BundleError(Exception):
@@ -113,30 +114,68 @@ def verify_manifest(manifest: Dict[str, Any], signature_b64: str, trusted: Dict[
     return manifest
 
 
+def _find_bundle_dir(root: Path, rel: str) -> Path:
+    """Select an existing direct child without ever constructing a path from rel."""
+    if not isinstance(rel, str) or not _BUNDLE_DIR.fullmatch(rel):
+        raise BundleError("invalid bundle path", 400)
+    for candidate in root.iterdir():
+        if candidate.name != rel:
+            continue
+        if candidate.is_symlink() or not candidate.is_dir():
+            raise BundleError("bundle path is not a regular directory", 403)
+        d = candidate.resolve(strict=True)
+        if d.parent != root:
+            raise BundleError("bundle path escapes the import root", 403)
+        return d
+    raise BundleError("bundle path not found", 404)
+
+
+def _verified_file_paths(files_root: Path) -> Dict[str, Path]:
+    """Enumerate files from the trusted bundle root; manifest paths are dictionary keys only."""
+    root = files_root.resolve(strict=True)
+    verified: Dict[str, Path] = {}
+    for candidate in root.rglob("*"):
+        if candidate.is_symlink():
+            raise BundleError(f"symlink is not allowed in bundle: {candidate.name!r}", 422)
+        if not candidate.is_file():
+            continue
+        resolved = candidate.resolve(strict=True)
+        try:
+            rel = resolved.relative_to(root).as_posix()
+        except ValueError:
+            raise BundleError("bundle file escapes the files root", 422)
+        verified[rel] = resolved
+    return verified
+
+
 def verify_bundle_dir(root: str | Path, rel: str, trusted: Dict[str, str],
                       last_versions: Optional[Dict[str, int]] = None) -> tuple[Dict[str, Any], Path]:
-    root_r = Path(root).resolve()
-    try:
-        d = (root_r / rel).resolve(strict=True)
-    except FileNotFoundError:
-        raise BundleError("bundle path not found", 404)
-    if d != root_r and root_r not in d.parents:
-        raise BundleError("bundle path escapes the import root", 403)
+    root_r = Path(root).resolve(strict=True)
+    d = _find_bundle_dir(root_r, rel)
     manifest = json.loads((d / "manifest.json").read_text())
     verify_manifest(manifest, (d / "manifest.sig").read_text(), trusted, last_versions)
+    files_root = (d / "files").resolve(strict=True)
+    verified_files = _verified_file_paths(files_root)
     problems = []
-    files_root = (d / "files").resolve()
     for f in manifest["files"]:
-        try:
-            p = (d / "files" / f["path"]).resolve(strict=True)
-        except FileNotFoundError:
-            problems.append(f"{f['path']}: missing"); continue
-        if files_root not in p.parents:
-            problems.append(f"{f['path']}: outside bundle"); continue
+        p = verified_files.get(f["path"])
+        if p is None:
+            problems.append(f"{f['path']}: missing")
+            continue
         if p.stat().st_size != f["size"]:
-            problems.append(f"{f['path']}: size {p.stat().st_size} != {f['size']}"); continue
+            problems.append(f"{f['path']}: size {p.stat().st_size} != {f['size']}")
+            continue
         if _sha256_file(p) != f["sha256"]:
             problems.append(f"{f['path']}: sha256 mismatch")
     if problems:
         raise BundleError("bundle content verification failed: " + "; ".join(problems), 422)
     return manifest, d
+
+
+def verified_bundle_file(d: Path, rel: str) -> Path:
+    """Return a previously verified bundle file without treating rel as a filesystem path."""
+    verified = _verified_file_paths(d / "files")
+    p = verified.get(rel)
+    if p is None:
+        raise BundleError(f"bundle file not found: {rel}", 404)
+    return p
