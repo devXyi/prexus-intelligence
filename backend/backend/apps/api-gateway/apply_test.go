@@ -111,7 +111,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 	}
 	// Normalization removes header-breaking controls from applicant fields.
 	for _, value := range []string{req.Module, req.Plan, req.Name} {
-		if strings.ContainsAny(value, "\\r\\n") {
+		if strings.ContainsAny(value, "\r\n") {
 			t.Errorf("normalized applicant field still contains CR/LF: %q", value)
 		}
 	}
