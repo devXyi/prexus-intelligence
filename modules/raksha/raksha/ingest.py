@@ -61,6 +61,7 @@ def asset_records(assets: List[Dict[str, Any]]) -> List[Record]:
 def import_bundle(store: Store, ledger: Ledger, import_dir: str, rel: str, trusted: Dict[str, str], *, actor: str) -> Dict[str, Any]:
     """Verify (signature, rollback, per-file hashes) THEN parse. Nothing unverified is ever parsed."""
     manifest, d = pbundle.verify_bundle_dir(import_dir, rel, trusted, store.bundle_versions())
+    verified_files = pbundle.verified_bundle_files(d / "files")
     fetched_at = manifest["created_at"]
     totals = {"inserted": 0, "updated": 0, "duplicate": 0, "parse_errors": 0, "epss_enriched": 0}
     epss_files = []
@@ -71,7 +72,10 @@ def import_bundle(store: Store, ledger: Ledger, import_dir: str, rel: str, trust
             continue
         if conn not in PARSERS:
             continue                                                            # payload with no Raksha parser is ignored, not guessed at
-        text = (d / "files" / f["path"]).read_text("utf-8")
+        p = verified_files.get(f["path"])
+        if p is None:
+            raise pbundle.BundleError(f"bundle file not found: {f[\"path\"]}", 422)
+        text = p.read_text("utf-8")
         recs, errs = PARSERS[conn](text, fetched_at)
         totals["parse_errors"] += len(errs)
         c = ingest_records(store, recs, fetched_at=fetched_at, source=f.get("source", ""), bundle_name=manifest["name"],
@@ -79,7 +83,10 @@ def import_bundle(store: Store, ledger: Ledger, import_dir: str, rel: str, trust
         for k in ("inserted", "updated", "duplicate"):
             totals[k] += c[k]
     for f in epss_files:                                                        # after KEV so the CVEs exist
-        scores, score_date = epss_conn.parse((d / "files" / f["path"]).read_text("utf-8"), None)
+        p = verified_files.get(f["path"])
+        if p is None:
+            raise pbundle.BundleError(f"bundle file not found: {f[\"path\"]}", 422)
+        scores, score_date = epss_conn.parse(p.read_text("utf-8"), None)
         totals["epss_enriched"] += apply_epss(store, scores, score_date, fetched_at=fetched_at)["enriched"]
     store.record_bundle(manifest["name"], manifest["version"], manifest["signer_key_id"])
     ledger.append(actor, "raksha.bundle.import", manifest["name"], {"version": manifest["version"], "signer": manifest["signer_key_id"], **totals})
