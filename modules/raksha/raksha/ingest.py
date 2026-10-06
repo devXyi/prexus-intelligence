@@ -85,7 +85,7 @@ def import_bundle(store: Store, ledger: Ledger, import_dir: str, rel: str, trust
     for f in epss_files:                                                        # after KEV so the CVEs exist
         p = verified_files.get(f["path"])
         if p is None:
-            raise pbundle.BundleError(f"bundle file not found: {f[\"path\"]}", 422)
+            raise pbundle.BundleError(f"bundle file not found: {f['path']}", 422)
         scores, score_date = epss_conn.parse(p.read_text("utf-8"), None)
         totals["epss_enriched"] += apply_epss(store, scores, score_date, fetched_at=fetched_at)["enriched"]
     store.record_bundle(manifest["name"], manifest["version"], manifest["signer_key_id"])
