@@ -109,11 +109,24 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 	if m2.Header.Get("Bcc") != "" {
 		t.Errorf("Bcc injected via direct call")
 	}
-	// Body survives QP round trip.
+	// Normalization removes header-breaking controls from applicant fields.
+	for _, value := range []string{req.Module, req.Plan, req.Name, req.UseCase} {
+		if strings.ContainsAny(value, "\\r\\n") {
+			t.Errorf("normalized applicant field still contains CR/LF: %q", value)
+		}
+	}
+	// Application notification body survives its quoted-printable round trip.
 	body := make([]byte, 4096)
 	n, _ := quotedprintable.NewReader(m.Body).Read(body)
-	if !strings.Contains(string(body[:n]), "Flood") && !strings.Contains(string(body[:n]), "line1") {
-		t.Errorf("body lost: %q", string(body[:n]))
+	decoded := string(body[:n])
+	if !strings.Contains(decoded, "PREXUS INTELLIGENCE PLATFORM") || strings.Contains(decoded, "Bcc:") {
+		t.Errorf("unexpected notification body: %q", decoded)
+	}
+	// A direct MIME body also survives the same encoding.
+	directBody := make([]byte, 64)
+	n, _ = quotedprintable.NewReader(m2.Body).Read(directBody)
+	if got := string(directBody[:n]); got != "body" {
+		t.Errorf("direct MIME body lost: %q", got)
 	}
 }
 
