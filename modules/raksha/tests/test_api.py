@@ -176,7 +176,8 @@ def test_builder_to_enclave_end_to_end(env):
     rogue = Signer.generate()
     bad = builder.build_package(tmp / "import", "raksha-feeds", 3, rogue, created_at="2026-10-03T00:00:00Z", kev=(FIX / "kev.json").read_text())
     assert c.post("/v1/ingest/bundle", json={"path": bad.name}, headers=H("admin")).status_code == 403
-    assert c.post("/v1/ingest/bundle", json={"path": "../../etc"}, headers=H("admin")).status_code in (403, 404)
+    assert c.post("/v1/ingest/bundle", json={"path": "../../etc"}, headers=H("admin")).status_code == 400
+    assert c.post("/v1/ingest/bundle", json={"path": "/etc/passwd"}, headers=H("admin")).status_code == 400
     acts = [e["action"] for e in app.state.ledger.events]
     assert "raksha.bundle.import" in acts and acts.count("raksha.bundle.rejected") >= 3
 
