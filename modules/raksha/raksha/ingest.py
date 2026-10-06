@@ -74,7 +74,7 @@ def import_bundle(store: Store, ledger: Ledger, import_dir: str, rel: str, trust
             continue                                                            # payload with no Raksha parser is ignored, not guessed at
         p = verified_files.get(f["path"])
         if p is None:
-            raise pbundle.BundleError(f"bundle file not found: {f[\"path\"]}", 422)
+            raise pbundle.BundleError(f"bundle file not found: {f['path']}", 422)
         text = p.read_text("utf-8")
         recs, errs = PARSERS[conn](text, fetched_at)
         totals["parse_errors"] += len(errs)
