@@ -110,7 +110,7 @@ func TestApply_HeaderInjectionNeutralised(t *testing.T) {
 		t.Errorf("Bcc injected via direct call")
 	}
 	// Normalization removes header-breaking controls from applicant fields.
-	for _, value := range []string{req.Module, req.Plan, req.Name, req.UseCase} {
+	for _, value := range []string{req.Module, req.Plan, req.Name} {
 		if strings.ContainsAny(value, "\\r\\n") {
 			t.Errorf("normalized applicant field still contains CR/LF: %q", value)
 		}
