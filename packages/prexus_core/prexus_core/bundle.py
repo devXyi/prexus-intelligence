@@ -155,7 +155,7 @@ def verify_bundle_dir(root: str | Path, rel: str, trusted: Dict[str, str],
     manifest = json.loads((d / "manifest.json").read_text())
     verify_manifest(manifest, (d / "manifest.sig").read_text(), trusted, last_versions)
     files_root = (d / "files").resolve(strict=True)
-    verified_files = _verified_file_paths(files_root)
+    verified_files = verified_bundle_files(files_root)
     problems = []
     for f in manifest["files"]:
         p = verified_files.get(f["path"])
