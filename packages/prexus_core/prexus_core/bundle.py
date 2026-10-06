@@ -130,7 +130,7 @@ def _find_bundle_dir(root: Path, rel: str) -> Path:
     raise BundleError("bundle path not found", 404)
 
 
-def _verified_file_paths(files_root: Path) -> Dict[str, Path]:
+def verified_bundle_files(files_root: Path) -> Dict[str, Path]:
     """Enumerate files from the trusted bundle root; manifest paths are dictionary keys only."""
     root = files_root.resolve(strict=True)
     verified: Dict[str, Path] = {}
@@ -174,7 +174,7 @@ def verify_bundle_dir(root: str | Path, rel: str, trusted: Dict[str, str],
 
 def verified_bundle_file(d: Path, rel: str) -> Path:
     """Return a previously verified bundle file without treating rel as a filesystem path."""
-    verified = _verified_file_paths(d / "files")
+    verified = verified_bundle_files(d / "files")
     p = verified.get(rel)
     if p is None:
         raise BundleError(f"bundle file not found: {rel}", 404)
