@@ -133,16 +133,148 @@ func (r *ApplyRequest) normalize() {
 	r.UseCase = cleanBlock(r.UseCase, 4000)
 }
 
-var refModuleRe = regexp.MustCompile(`[^A-Z0-9]`)
+// refPrefix is an ALLOWLIST: a reference never contains applicant-supplied characters.
+var refPrefix = map[string]string{"meteorium": "MET", "raksha": "RAK", "healtho": "HEA", "artha": "ART"}
+var appRefRe = regexp.MustCompile(`^PRX-[A-Z]{3}-[0-9A-F]{8}// backend/apps/api-gateway/apply.go
+// Prexus Intelligence — Access Application Handler (v2)
+//
+// v2 (audit fixes):
+//   • The route is now registered in main.go. v1 was never wired, so every
+//     pricing-page submission (all modules, incl. Raksha) returned 404.
+//   • Applications are persisted to Postgres BEFORE any email is attempted:
+//     an SMTP outage can no longer lose a lead.
+//   • Header-injection safe: CR/LF/control chars are stripped from every value
+//     that reaches a mail header; the subject is RFC 2047 encoded.
+//   • SMTP dial + session have hard timeouts (no hung goroutines).
+//   • No hardcoded personal recipients. NOTIFY_EMAILS is the only source.
+//   • STARTTLS (587) and implicit TLS (465) supported; refuses to send
+//     credentials in clear.
+//
+// Env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, NOTIFY_EMAILS (comma list)
+
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/tls"
+	"encoding/hex"
+	"fmt"
+	"log"
+	"mime"
+	"mime/quotedprintable"
+	"net"
+	"net/http"
+	"net/mail"
+	"net/smtp"
+	"os"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+// Vars (not consts) so tests can shrink them.
+var (
+	smtpDialTimeout  = 10 * time.Second
+	smtpTotalTimeout = 30 * time.Second
+)
+
+// sendMail is a package var so tests can stub the network.
+var sendMail = sendApplicationEmail
+
+// notifyRecipients returns validated recipients from NOTIFY_EMAILS only.
+func notifyRecipients() []string {
+	var list []string
+	for _, e := range strings.Split(os.Getenv("NOTIFY_EMAILS"), ",") {
+		e = strings.TrimSpace(e)
+		if e == "" {
+			continue
+		}
+		addr, err := mail.ParseAddress(e)
+		if err != nil {
+			log.Printf("[apply] ignoring invalid NOTIFY_EMAILS entry")
+			continue
+		}
+		list = append(list, addr.Address)
+	}
+	return list
+}
+
+func smtpConfigured() bool {
+	return os.Getenv("SMTP_HOST") != "" && os.Getenv("SMTP_USER") != "" &&
+		os.Getenv("SMTP_PASS") != "" && len(notifyRecipients()) > 0
+}
+
+// ── Request model ─────────────────────────────────────────────────────────────
+
+type ApplyRequest struct {
+	Module     string `json:"module"     binding:"required,max=32"`
+	Plan       string `json:"plan"       binding:"required,max=64"`
+	Deployment string `json:"deployment" binding:"max=64"`
+
+	Name    string `json:"name"     binding:"required,max=120"`
+	Title   string `json:"title"    binding:"max=120"`
+	Email   string `json:"email"    binding:"required,email,max=254"`
+	Org     string `json:"org"      binding:"required,max=200"`
+	Country string `json:"country"  binding:"required,max=80"`
+	OrgType string `json:"org_type" binding:"required,max=80"`
+	UseCase string `json:"use_case" binding:"max=4000"`
+}
+
+// cleanLine collapses any value into a single header-safe line.
+func cleanLine(s string, max int) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f || r == 0x85 || r == 0x2028 || r == 0x2029 {
+			b.WriteRune(' ')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	out := strings.Join(strings.Fields(b.String()), " ")
+	if rs := []rune(out); max > 0 && len(rs) > max {
+		out = string(rs[:max])
+	}
+	return out
+}
+
+// cleanBlock keeps newlines (for the free-text use case) but drops other control chars.
+func cleanBlock(s string, max int) string {
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+	var b strings.Builder
+	for _, r := range s {
+		if r == '\n' || r == '\t' || (r >= 0x20 && r != 0x7f) {
+			b.WriteRune(r)
+		}
+	}
+	out := strings.TrimSpace(b.String())
+	if rs := []rune(out); max > 0 && len(rs) > max {
+		out = string(rs[:max])
+	}
+	return out
+}
+
+func (r *ApplyRequest) normalize() {
+	r.Module = cleanLine(r.Module, 32)
+	r.Plan = cleanLine(r.Plan, 64)
+	r.Deployment = cleanLine(r.Deployment, 64)
+	r.Name = cleanLine(r.Name, 120)
+	r.Title = cleanLine(r.Title, 120)
+	r.Email = cleanLine(r.Email, 254)
+	r.Org = cleanLine(r.Org, 200)
+	r.Country = cleanLine(r.Country, 80)
+	r.OrgType = cleanLine(r.OrgType, 80)
+	r.UseCase = cleanBlock(r.UseCase, 4000)
+}
+
+)
 
 func newApplicationRef(module string) string {
-	prefix := refModuleRe.ReplaceAllString(strings.ToUpper(module), "")
-	if len(prefix) > 3 {
-		prefix = prefix[:3]
-	}
-	if prefix == "" {
-		prefix = "GEN"
-	}
+	prefix := refPrefix[strings.ToLower(strings.TrimSpace(module))]
+	if prefix == "" { prefix = "GEN" }
 	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
 		return fmt.Sprintf("PRX-%s-%08X", prefix, uint32(time.Now().UnixNano()))
@@ -216,18 +348,18 @@ func notifyApplication(req ApplyRequest, ref string, persisted bool) {
 
 // ── Email composition ─────────────────────────────────────────────────────────
 
-func applicationSubject() string {
-	return "New PREXUS Access Application"
-}
-
-func applicationBody() string {
+func safeRef(ref string) string { if appRefRe.MatchString(ref) { return ref }; return "(invalid reference)" }
+func applicationSubject(ref string) string { return "New PREXUS Access Application " + safeRef(ref) }
+func applicationBody(ref string) string {
+	ref = safeRef(ref)
 	return fmt.Sprintf(`PREXUS INTELLIGENCE PLATFORM
 New access application received at %s UTC.
 
-Review the application in the administrative system. Applicant-provided
-content is intentionally excluded from email notifications and remains in
-the application database.
-`, time.Now().UTC().Format("2006-01-02 15:04:05"))
+Reference: %s
+
+Applicant details are not sent by email. Read them with an admin token:
+  GET /admin/applications/%s
+`, time.Now().UTC().Format("2006-01-02 15:04:05"), ref, ref)
 }
 
 func sendApplicationEmail(req ApplyRequest, ref string) error {
@@ -244,7 +376,7 @@ func sendApplicationEmail(req ApplyRequest, ref string) error {
 		return fmt.Errorf("NOTIFY_EMAILS not configured")
 	}
 
-	msg := buildMIMEMessage(user, recipients, applicationSubject(), applicationBody())
+	msg := buildMIMEMessage(user, recipients, applicationSubject(ref), applicationBody(ref))
 
 	addr := net.JoinHostPort(host, port)
 	dialer := &net.Dialer{Timeout: smtpDialTimeout}
