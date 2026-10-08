@@ -16,9 +16,37 @@ use pyo3::exceptions::PyValueError;
 mod distribution;
 mod engine;
 mod mc_asset;
+mod mc_portfolio;
 mod stats;
 
 use engine::{SimulationParams, BatchSimulationParams, run_simulation, run_batch};
+
+/// Upper bound on Monte Carlo draws accepted across the FFI boundary. Bigger requests
+/// would allocate gigabytes; allocation failure *aborts* the process (not a panic).
+pub const MAX_DRAWS: usize = 2_000_000;
+
+/// Validate every numeric input crossing the FFI boundary. NaN/inf, out-of-range and
+/// unbounded sizes are rejected here so they can never reach a panic site.
+pub fn validate_asset_inputs(
+    physical_risk: f64, transition_risk: f64, asset_value_mm: f64, horizon_days: i64, n_draws: usize,
+) -> Result<(), String> {
+    if !physical_risk.is_finite() || !(0.0..=1.0).contains(&physical_risk) {
+        return Err("physical_risk must be a finite number in [0, 1]".into());
+    }
+    if !transition_risk.is_finite() || !(0.0..=1.0).contains(&transition_risk) {
+        return Err("transition_risk must be a finite number in [0, 1]".into());
+    }
+    if !asset_value_mm.is_finite() || asset_value_mm <= 0.0 || asset_value_mm > 1.0e9 {
+        return Err("asset_value_mm must be finite and in (0, 1e9]".into());
+    }
+    if !(0..=36_500).contains(&horizon_days) {
+        return Err("horizon_days must be in [0, 36500]".into());
+    }
+    if n_draws == 0 || n_draws > MAX_DRAWS {
+        return Err(format!("n_draws must be in [1, {}]", MAX_DRAWS));
+    }
+    Ok(())
+}
 use mc_asset::{run_asset_mc, run_stress_scenarios};
 
 // ── Single simulation ─────────────────────────────────────────────────────────
@@ -142,18 +170,8 @@ fn monte_carlo_asset(
     horizon_days:    i64,
     n_draws:         usize,
 ) -> PyResult<(f64, f64, f64, f64, f64)> {
-    if !(0.0..=1.0).contains(&physical_risk) {
-        return Err(PyValueError::new_err("physical_risk must be in [0, 1]"));
-    }
-    if !(0.0..=1.0).contains(&transition_risk) {
-        return Err(PyValueError::new_err("transition_risk must be in [0, 1]"));
-    }
-    if asset_value_mm <= 0.0 {
-        return Err(PyValueError::new_err("asset_value_mm must be > 0"));
-    }
-    if n_draws == 0 {
-        return Err(PyValueError::new_err("n_draws must be > 0"));
-    }
+    validate_asset_inputs(physical_risk, transition_risk, asset_value_mm, horizon_days, n_draws)
+        .map_err(PyValueError::new_err)?;
 
     Ok(run_asset_mc(
         physical_risk, transition_risk, asset_value_mm,
@@ -179,6 +197,8 @@ fn stress_test_scenarios(
     asset_type:      &str,
     n_draws:         usize,
 ) -> PyResult<Vec<(String, f64, f64, f64)>> {
+    validate_asset_inputs(physical_risk, transition_risk, asset_value_mm, 365, n_draws)
+        .map_err(PyValueError::new_err)?;
     Ok(run_stress_scenarios(
         physical_risk, transition_risk, asset_value_mm, asset_type, n_draws,
     ))
@@ -187,8 +207,22 @@ fn stress_test_scenarios(
 // ── Module registration ───────────────────────────────────────────────────────
 
 /// Meteorium Monte Carlo Risk Engine — Prexus Intelligence · v2.0.0
+/// Exposed so Python tests can assert the Rust and Python parameter tables are IDENTICAL
+/// (v1 had the scenario table reversed in Rust; nothing could notice).
+#[pyfunction]
+fn scenario_multiplier(scenario: &str) -> f64 {
+    mc_asset::scenario_multiplier(scenario)
+}
+
+#[pyfunction]
+fn asset_vulnerability(asset_type: &str) -> f64 {
+    mc_asset::asset_vulnerability(asset_type)
+}
+
 #[pymodule]
-fn meteorium_engine(_py: Python, m: &PyModule) -> PyResult<()> {
+fn meteorium_engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(scenario_multiplier, m)?)?;
+    m.add_function(wrap_pyfunction!(asset_vulnerability, m)?)?;
     m.add_function(wrap_pyfunction!(simulate, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_batch, m)?)?;
     m.add_function(wrap_pyfunction!(monte_carlo_asset, m)?)?;

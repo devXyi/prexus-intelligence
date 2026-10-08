@@ -1,3 +1,5 @@
+> **Superseded layout notice (v2):** paths and run commands in this file predate the layer0-6 refactor. Use `/BUILD.md`.
+
 # Meteorium Data Engine
 
 Real multi-service data pipeline for Prexus Intelligence.

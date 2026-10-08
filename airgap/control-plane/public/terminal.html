@@ -34,7 +34,7 @@
     node.addEventListener('change', updateCommands); command.addEventListener('change', updateInput);
     document.querySelector('#run').addEventListener('click', async () => {
       try {
-        const response = await fetch(`/v1/nodes/${node.value}/runs`, { method:'POST', headers:{'content-type':'application/json','authorization':`Bearer ${document.querySelector('#token').value}`,'x-operator-id':'console-operator'}, body:JSON.stringify({command:command.value,input:JSON.parse(input.value)}) });
+        const response = await fetch(`/v1/nodes/${node.value}/runs`, { method:'POST', headers:{'content-type':'application/json','authorization':`Bearer ${document.querySelector('#token').value}`,}, body:JSON.stringify({command:command.value,input:JSON.parse(input.value)}) });
         output.textContent = JSON.stringify(await response.json(), null, 2);
       } catch (error) { output.textContent = `Request failed: ${error.message}`; }
     });

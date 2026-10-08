@@ -1,0 +1,29 @@
+{
+ "edges": [
+  {
+   "from": "grid-beta",
+   "to": "port-alpha",
+   "p": 0.6
+  },
+  {
+   "from": "telecom-gamma",
+   "to": "port-alpha",
+   "p": 0.4
+  },
+  {
+   "from": "grid-beta",
+   "to": "telecom-gamma",
+   "p": 0.5
+  },
+  {
+   "from": "grid-beta",
+   "to": "refinery-delta",
+   "p": 0.7
+  },
+  {
+   "from": "port-alpha",
+   "to": "refinery-delta",
+   "p": 0.5
+  }
+ ]
+}

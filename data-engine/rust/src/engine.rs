@@ -52,6 +52,18 @@ pub fn run_simulation(params: &SimulationParams) -> Result<RiskStats, String> {
     if params.n_steps == 0 {
         return Err("n_steps must be > 0".into());
     }
+    // Memory guard: paths are materialised as n_paths × n_steps f64 (8 bytes each).
+    const MAX_PATHS: usize = 1_000_000;
+    const MAX_STEPS: usize = 100_000;
+    const MAX_CELLS: usize = 50_000_000;
+    if params.n_paths > MAX_PATHS || params.n_steps > MAX_STEPS
+        || params.n_paths.saturating_mul(params.n_steps) > MAX_CELLS
+    {
+        return Err(format!(
+            "simulation too large (limits: n_paths ≤ {}, n_steps ≤ {}, n_paths×n_steps ≤ {})",
+            MAX_PATHS, MAX_STEPS, MAX_CELLS
+        ));
+    }
 
     let master_seed = if params.seed == 0 {
         rand::random::<u64>()

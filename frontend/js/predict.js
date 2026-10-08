@@ -3,19 +3,19 @@
  * Prexus Intelligence — Predictive Trajectory Engine
  *
  * Turns static risk scores into forward-looking intelligence:
- *   "Asset X will cross CRITICAL threshold in 3.2 days (87% confidence)"
+ *   "Asset X will cross CRITICAL threshold in 3.2 days (87% exceedance probability, uncalibrated)"
  *
  * Pure math — no ML framework. Uses:
  *   - Exponential weighted moving average for trend
- *   - Baseline volatility from IPCC AR6 seasonal factors
+ *   - Baseline volatility from hand-set seasonal factors (illustrative, uncalibrated)
  *   - Monte Carlo projection (JS, 1000 draws, runs in ~2ms)
  */
 
 import { store } from './store.js';
 
 /* ══════════════════════════════════════════════════════════
-   IPCC AR6 SEASONAL RISK AMPLIFIERS
-   Source: AR6 WG-II Chapter 11 (Extreme Events)
+   SEASONAL RISK DRIFT - ILLUSTRATIVE, hand-set values
+   NOT derived from IPCC AR6 (v1 attributed these numbers to AR6 WG-II Ch.11); replace with fitted seasonality
 ══════════════════════════════════════════════════════════ */
 const SEASONAL = {
   // month (0-11) → physical risk drift rate per day
@@ -162,13 +162,21 @@ export function computeTrajectory(asset) {
 function _crossingConfidence(projection, day, threshold) {
   const snap = projection.find(p => p.day === day);
   if (!snap) return 0;
-  // What fraction of distribution is above threshold at that day?
-  // Approximate from percentiles
-  if (snap.p25 >= threshold) return 0.85;
-  if (snap.p50 >= threshold) return 0.70;
-  if (snap.p75 >= threshold) return 0.55;
-  if (snap.p90 >= threshold) return 0.35;
-  return 0.20;
+  // P(risk >= threshold): linear interpolation of the CDF through the stored percentiles,
+  // anchored at the support edges (risk scores live in [0,1]). v1 returned hard-coded 0.85/0.70/...
+  // buckets and printed them as "% confidence". This remains an UNCALIBRATED heuristic projection.
+  const pts = [[0, 0], [snap.p10, 0.10], [snap.p25, 0.25], [snap.p50, 0.50], [snap.p75, 0.75], [snap.p90, 0.90], [1, 1]]
+    .filter(([v]) => Number.isFinite(v)).sort((a, b) => a[0] - b[0]);
+  if (threshold <= 0) return 1;
+  if (threshold >= 1) return 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [v0, f0] = pts[i - 1], [v1, f1] = pts[i];
+    if (threshold <= v1) {
+      const f = v1 === v0 ? f1 : f0 + (f1 - f0) * (threshold - v0) / (v1 - v0);
+      return Math.min(1, Math.max(0, 1 - f));
+    }
+  }
+  return 0;
 }
 
 function _band(score) {

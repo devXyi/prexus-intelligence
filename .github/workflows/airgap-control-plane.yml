@@ -2,15 +2,9 @@ name: Air-gap control plane
 
 on:
   push:
-    paths:
-      - "airgap/**"
-      - "docker-compose.airgap.yml"
-      - ".github/workflows/airgap-control-plane.yml"
+    paths: ["airgap/**", "docker-compose.airgap.yml", "packages/prexus_core/**", ".github/workflows/airgap-control-plane.yml"]
   pull_request:
-    paths:
-      - "airgap/**"
-      - "docker-compose.airgap.yml"
-      - ".github/workflows/airgap-control-plane.yml"
+    paths: ["airgap/**", "docker-compose.airgap.yml", "packages/prexus_core/**", ".github/workflows/airgap-control-plane.yml"]
 
 permissions:
   contents: read
@@ -18,12 +12,14 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: airgap/control-plane
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm test
+        with: { node-version: 22 }
+      - run: node --test
+        working-directory: airgap/control-plane
+      - run: sudo env "PATH=$PATH" ./airgap/tools/netns-test.sh
+      - name: Compose file is valid
+        run: |
+          mkdir -p secrets && : > secrets/operators.json && : > secrets/ledger_key.pem && : > secrets/engine_secret && : > secrets/raksha_subjects.json && : > secrets/dependencies.json
+          docker compose -f docker-compose.airgap.yml config -q

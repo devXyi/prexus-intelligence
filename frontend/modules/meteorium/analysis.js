@@ -170,7 +170,7 @@ function _trajectoryPanel(asset, traj) {
         ${crossing.threshold} in ${crossing.days}d
       </div>
       <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted)">
-        ${Math.round(crossing.confidence * 100)}% confidence · P50 projection
+        ${Math.round(crossing.confidence * 100)}% exceedance (uncalibrated) · P50 projection
       </div>
     </div>` : `
     <div style="padding:9px 12px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:4px;margin:12px">
@@ -353,7 +353,7 @@ async function _runAnalysis(container, assets, assetId) {
   _log(`[${runId}] Predictive trajectory: ${traj.trend} · 7d Δ${traj.delta7>=0?'+':''}${(traj.delta7*100).toFixed(1)}%`);
 
   if (traj.nextCrossing) {
-    _log(`[${runId}] ⚠ Threshold alert: ${traj.nextCrossing.threshold} breach in ${traj.nextCrossing.days}d (${Math.round(traj.nextCrossing.confidence*100)}% confidence)`, '#EF4444');
+    _log(`[${runId}] ⚠ Threshold alert: ${traj.nextCrossing.threshold} breach in ${traj.nextCrossing.days}d (${Math.round(traj.nextCrossing.confidence*100)}% exceedance (uncalibrated))`, '#EF4444');
   }
 
   let result = null;
@@ -447,7 +447,7 @@ async function _runAnalysis(container, assets, assetId) {
 Scenario: ${sc.label} ${sc.sub}. Risk: ${fPct(cr)} composite, ${fPct(result.physical_risk||0)} physical, ${fPct(result.transition_risk||0)} transition.
 VaR 95%: ${fPct(result.var_95||0)}. Expected loss: ${fUsd(result.loss_expected_mm||0)}.
 Trend: ${traj.trend}. 7-day delta: ${traj.delta7>=0?'+':''}${(traj.delta7*100).toFixed(1)}%.
-${traj.nextCrossing ? `Predicted ${traj.nextCrossing.threshold} breach in ${traj.nextCrossing.days} days (${Math.round(traj.nextCrossing.confidence*100)}% confidence).` : 'No threshold breach predicted in 30 days.'}
+${traj.nextCrossing ? `Predicted ${traj.nextCrossing.threshold} breach in ${traj.nextCrossing.days} days (${Math.round(traj.nextCrossing.confidence*100)}% exceedance (uncalibrated)).` : 'No threshold breach predicted in 30 days.'}
 Sources: Open-Meteo ECMWF, NASA FIRMS, Carbon Monitor, IPCC AR6.
 Brief: (1) key risk drivers, (2) immediate actions, (3) 30-day outlook. Max 180 words.`, 'gemini'
       );

@@ -1,29 +1,88 @@
+# Air-gapped stack. `enclave` is `internal: true` (no route out). Only `ingress` publishes a port,
+# bound to loopback. Secrets are FILES (docker secrets), never environment variables.
+#
+#   mkdir -p secrets import trust
+#   node airgap/control-plane/tools/mint-operator.mjs alice operator   # → operators.json + token
+#   docker compose -f docker-compose.airgap.yml up -d
+#
+# UNVERIFIED IN THE AUTHORING SANDBOX (no Docker daemon): the control plane, engine and Raksha code
+# paths are tested; this file is syntax-checked and the nginx config passes `nginx -t`.
+name: prexus-airgap
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+
 services:
+  ingress:
+    image: nginxinc/nginx-unprivileged:1.27-alpine      # pin by digest in release builds
+    <<: *hardened
+    ports: ["127.0.0.1:8787:8080"]
+    volumes: ["./airgap/nginx.conf:/etc/nginx/nginx.conf:ro"]
+    networks: [ingress, enclave]
+    depends_on:
+      control-plane: { condition: service_healthy }
+
   control-plane:
-    build:
-      context: .
-      dockerfile: airgap/Dockerfile
+    build: { context: ., dockerfile: airgap/Dockerfile }
+    <<: *hardened
     environment:
-      PREXUS_OPERATOR_TOKEN: ${PREXUS_OPERATOR_TOKEN:?set a high-entropy operator token before startup}
-      PREXUS_STATE_DIR: /var/lib/prexus
-    ports:
-      - "127.0.0.1:8787:8787"
+      PREXUS_OPERATORS_FILE: /run/secrets/operators
+      PREXUS_LEDGER_KEY_FILE: /run/secrets/ledger_key
+      PREXUS_ENGINE_URL: http://engine:8001
+      PREXUS_ENGINE_SECRET_FILE: /run/secrets/engine_secret
+      PREXUS_IMPORT_DIR: /import
+      PREXUS_BUNDLE_TRUST_DIR: /trust
+      PREXUS_EGRESS_PROBE: "1"
+    secrets: [operators, ledger_key, engine_secret]
     volumes:
-      - prexus-control-plane-state:/var/lib/prexus
-    networks:
-      - prexus-airgap
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=16m
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    restart: unless-stopped
+      - control-plane-state:/var/lib/prexus
+      - ./import:/import:ro
+      - ./trust:/trust:ro
+    networks: [enclave]
+
+  engine:
+    build: { context: data-engine, dockerfile: Dockerfile }
+    <<: *hardened
+    environment:
+      ENGINE_SECRET_FILE: /run/secrets/engine_secret
+      METEORIUM_BASE: /var/lib/meteorium
+    secrets: [engine_secret]
+    volumes: ["engine-state:/var/lib/meteorium"]
+    networks: [enclave]
+
+  raksha:
+    build: { context: ., dockerfile: modules/raksha/Dockerfile }
+    <<: *hardened
+    environment:
+      RAKSHA_SUBJECTS_FILE: /run/secrets/raksha_subjects
+      RAKSHA_LEDGER_KEY_FILE: /run/secrets/ledger_key
+      RAKSHA_IMPORT_DIR: /import
+      RAKSHA_TRUST_DIR: /trust
+      RAKSHA_DEPENDENCIES_FILE: /etc/raksha/dependencies.json
+      RAKSHA_NETWORK: enclave
+    secrets: [raksha_subjects, ledger_key]
+    volumes:
+      - raksha-state:/var/lib/raksha
+      - ./import:/import:ro
+      - ./trust:/trust:ro
+      - ./secrets/dependencies.json:/etc/raksha/dependencies.json:ro
+    networks: [enclave]
 
 networks:
-  prexus-airgap:
-    internal: true
+  enclave: { internal: true }
+  ingress: {}
+
+secrets:
+  operators: { file: ./secrets/operators.json }
+  ledger_key: { file: ./secrets/ledger_key.pem }
+  engine_secret: { file: ./secrets/engine_secret }
+  raksha_subjects: { file: ./secrets/raksha_subjects.json }
 
 volumes:
-  prexus-control-plane-state:
+  control-plane-state:
+  engine-state:
+  raksha-state:

@@ -10,12 +10,12 @@ import (
 // independent Conduit MCP service. Conduit remains an external service; this
 // package is the Prexus integration boundary.
 type Config struct {
-	MCPURL      string
-	TokenURL    string
-	Audience    string
-	ClientID    string
+	MCPURL       string
+	TokenURL     string
+	Audience     string
+	ClientID     string
 	ClientSecret string
-	Scope       string
+	Scope        string
 }
 
 func LoadConfig() (Config, error) {

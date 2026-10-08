@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
@@ -31,6 +31,7 @@ from core.config import (
     API_HOST, API_PORT, API_WORKERS, API_RELOAD,
     ENGINE_SECRET, MONTE_CARLO_DRAWS, RISK_CACHE_TTL_SEC
 )
+from core.security import assert_auth_configured, require_engine_auth
 from layer1.workers import WorkerRegistry
 from layer2.lake import DataLake
 from layer3.preprocessor import GeospatialPreprocessor
@@ -57,6 +58,8 @@ _risk_cache: dict = {}   # {cache_key: (result_dict, expires_at)}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _lake, _preproc, _store, _workers, _engine
+
+    assert_auth_configured()   # fail closed: no secret → no boot
 
     logger.info("╔══════════════════════════════════════╗")
     logger.info("║  METEORIUM ENGINE v2.0 — STARTING    ║")
@@ -87,24 +90,23 @@ app = FastAPI(
     description = "Prexus Intelligence — 7-Layer Climate Risk Intelligence System",
     version     = "2.0.0",
     lifespan    = lifespan,
-    docs_url    = "/docs",
-    redoc_url   = "/redoc",
+    docs_url    = "/docs"  if os.environ.get("ENGINE_ENABLE_DOCS") == "1" else None,
+    redoc_url   = None,
+    openapi_url = "/openapi.json" if os.environ.get("ENGINE_ENABLE_DOCS") == "1" else None,
 )
 
-# FIX: wildcard origin + allow_credentials=True is an invalid CORS combo.
-# Browsers reject credentialed requests unless origin is explicitly listed.
-_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
-    "ALLOWED_ORIGINS",
-    "https://prexus-intelligence.onrender.com,http://localhost:3000,http://localhost:5500"
-).split(",") if o.strip()]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins     = _ALLOWED_ORIGINS,
-    allow_credentials = True,
-    allow_methods     = ["*"],
-    allow_headers     = ["*"],
-)
+# The engine is called by the Go gateway (server-to-server). Browsers must NOT
+# talk to it directly: it holds no user sessions and requires the shared secret.
+# Set ENGINE_CORS_ORIGINS only for local tooling; credentials are never allowed.
+_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ENGINE_CORS_ORIGINS", "").split(",") if o.strip()]
+if _ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins     = _ALLOWED_ORIGINS,
+        allow_credentials = False,
+        allow_methods     = ["GET", "POST"],
+        allow_headers     = ["Authorization", "Content-Type"],
+    )
 
 
 # ─── Request / response models ────────────────────────────────────────────────
@@ -165,31 +167,20 @@ class ChatRequest(BaseModel):
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 
-def _verify(authorization: Optional[str] = Header(None)):
-    secret = ENGINE_SECRET
-    if not secret:
-        return True
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Unauthorized")
-    if authorization.split(" ", 1)[1] != secret:
-        raise HTTPException(401, "Invalid token")
-    return True
+# Backwards-compatible alias: per-route Depends(_verify) now uses the fail-closed check.
+_verify = require_engine_auth
+
+protected = APIRouter(dependencies=[Depends(require_engine_auth)])
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
-    return {
-        "status":    "ok",
-        "service":   "meteorium-engine",
-        "version":   "2.0.0",
-        "rust":      RUST_AVAILABLE,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    return {"status": "ok", "service": "meteorium-engine", "version": "2.0.0"}
 
 
-@app.get("/risk/health")
+@protected.get("/risk/health")
 async def risk_health():
     """Full system health across all 7 layers."""
     return {
@@ -206,7 +197,7 @@ async def risk_health():
 
 # ─── Layer 0 — source catalogue ───────────────────────────────────────────────
 
-@app.get("/sources")
+@protected.get("/sources")
 async def list_sources():
     """Layer 0: Return full source registry."""
     from layer0.sources import REGISTRY, FREE_SOURCES, KEYED_SOURCES
@@ -234,7 +225,7 @@ async def list_sources():
 
 # ─── Main risk endpoints ──────────────────────────────────────────────────────
 
-@app.post("/risk/asset")
+@protected.post("/risk/asset")
 async def score_asset(
     req: AssetRiskRequest,
     _:   bool = Depends(_verify),
@@ -311,7 +302,7 @@ async def score_asset(
     return response
 
 
-@app.post("/risk/portfolio")
+@protected.post("/risk/portfolio")
 async def score_portfolio(
     req: PortfolioRequest,
     _:   bool = Depends(_verify),
@@ -370,7 +361,7 @@ async def score_portfolio(
     }
 
 
-@app.post("/risk/stress-test")
+@protected.post("/risk/stress-test")
 async def stress_test(
     req: AssetRiskRequest,
     _:   bool = Depends(_verify),
@@ -405,7 +396,7 @@ async def stress_test(
     }
 
 
-@app.post("/risk/histogram")
+@protected.post("/risk/histogram")
 async def loss_histogram(
     req: AssetRiskRequest,
     _:   bool = Depends(_verify),
@@ -438,13 +429,13 @@ async def loss_histogram(
 
 # ─── Lake / manifest endpoints ────────────────────────────────────────────────
 
-@app.get("/lake/stats")
+@protected.get("/lake/stats")
 async def lake_stats(_: bool = Depends(_verify)):
     """Layer 2: Data lake statistics."""
     return _lake.stats()
 
 
-@app.get("/lake/files")
+@protected.get("/lake/files")
 async def lake_files(
     source_id:    Optional[str]   = None,
     since_hours:  Optional[float] = 24.0,
@@ -467,83 +458,51 @@ async def lake_files(
     }
 
 
-# ─── AI endpoints ─────────────────────────────────────────────────────────────
+# ─── AI endpoints (moved) ─────────────────────────────────────────────────────
+# LLM calls now live ONLY in the Go gateway (one place for keys, model
+# allowlist, quotas, audit and the air-gap `*_BASE_URL` switch). The engine
+# holds no LLM credentials.
 
-@app.post("/analyze")
-async def ai_analyze(req: AIRequest):
-    result = await _call_ai(req.prompt, req.model)
-    return {"result": result, "model": req.model}
-
-
-@app.post("/chat")
-async def ai_chat(req: ChatRequest):
-    messages = [{"role": m.role, "content": m.content} for m in req.messages]
-    last     = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    result   = await _call_ai(last, req.model, history=messages[:-1])
-    return {"result": result, "model": req.model}
+@protected.post("/analyze")
+@protected.post("/chat")
+async def ai_moved():
+    raise HTTPException(410, "AI endpoints moved to the API gateway (/analyze, /chat, /claude)")
 
 
-async def _call_ai(
-    prompt:  str,
-    model:   str = "gemini",
-    history: list = None,
-) -> str:
-    import httpx
-    history = history or []
+# ─── Event simulation (CAT v0) ────────────────────────────────────────────────
 
-    if model == "gemini":
-        key = os.environ.get("GEMINI_API_KEY", "")
-        if not key:
-            return "AI unavailable — set GEMINI_API_KEY env var."
-        async with httpx.AsyncClient(timeout=30) as c:
-            contents = [
-                *[{"role": m["role"], "parts": [{"text": m["content"]}]} for m in history[-6:]],
-                {"role": "user", "parts": [{"text": prompt}]},
-            ]
-            resp = await c.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"gemini-2.0-flash:generateContent?key={key}",
-                json={"contents": contents,
-                      "generationConfig": {"temperature": 0.4, "maxOutputTokens": 600}},
-            )
-            resp.raise_for_status()
-            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+class SimulateRequest(BaseModel):
+    asset_id:        str   = Field("asset", max_length=64)
+    asset_type:      str   = Field("infrastructure", max_length=40)
+    scenario:        str   = Field("flood", description="flood | wildfire | heat | drought")
+    intensity:       float = Field(0.5, ge=0.0, le=1.0)
+    duration_days:   float = Field(7.0, ge=0.0, le=365.0)
+    rcp_year:        int   = Field(2030, ge=2023, le=2100)
+    rcp_scenario:    str   = Field("rcp85")
+    value_usd_mm:    float = Field(10.0, gt=0, le=1_000_000)
+    composite_risk:  float = Field(0.5, ge=0.0, le=1.0)
+    seed:            Optional[int] = Field(None, ge=0, le=2**32 - 1)
 
-    if model == "claude":
-        key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not key:
-            return "AI unavailable — set ANTHROPIC_API_KEY env var."
-        async with httpx.AsyncClient(timeout=30) as c:
-            msgs = [*history[-6:], {"role": "user", "content": prompt}]
-            resp = await c.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-                json={"model": "claude-3-5-sonnet-20241022",
-                      "max_tokens": 600, "messages": msgs,
-                      "system": "You are a senior climate risk analyst at Prexus Intelligence."},
-            )
-            resp.raise_for_status()
-            return resp.json()["content"][0]["text"]
+    @validator("scenario")
+    def _valid_hazard(cls, v):
+        v = v.lower()
+        if v not in {"flood", "wildfire", "heat", "drought"}:
+            raise ValueError("scenario must be flood | wildfire | heat | drought")
+        return v
 
-    if model == "chatgpt":
-        key = os.environ.get("OPENAI_API_KEY", "")
-        if not key:
-            return "AI unavailable — set OPENAI_API_KEY env var."
-        async with httpx.AsyncClient(timeout=30) as c:
-            msgs = [
-                {"role": "system", "content": "Senior climate risk analyst. Be concise."},
-                *history[-6:],
-                {"role": "user", "content": prompt},
-            ]
-            resp = await c.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}"},
-                json={"model": "gpt-4o", "messages": msgs, "max_tokens": 600},
-            )
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
 
-    return "Unknown model. Use: gemini | claude | chatgpt"
+@protected.post("/risk/simulate")
+async def simulate_event(req: SimulateRequest):
+    """Scenario simulation used by the UI's Run Simulation button (CAT v0)."""
+    from catmodel.simulate import simulate_event as _sim
+    return _sim(
+        hazard=req.scenario, intensity=req.intensity, duration_days=req.duration_days,
+        target_year=req.rcp_year, rcp=req.rcp_scenario, value_mm=req.value_usd_mm,
+        composite_risk=req.composite_risk, asset_type=req.asset_type, seed=req.seed,
+    )
+
+
+app.include_router(protected)
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────

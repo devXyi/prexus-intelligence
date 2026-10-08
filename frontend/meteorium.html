@@ -530,7 +530,7 @@ select.fi option{background:#04101f}
   </div>
 </div>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="modules/meteorium/globe.js"></script>
 <script>
 'use strict';
@@ -1205,11 +1205,7 @@ qs('sim-btn').addEventListener('click',function(){
   var tgt        = STATE.simTarget || [].concat(ASSETS).sort(function(a,b){return b.cr-a.cr;})[0];
   var timeScalar = 1 + (STATE.time - 2023) * 0.012;
 
-  /* Client-side fallback values (used if backend not reachable) */
-  var fallbackCost = usd(tgt.val * tgt.cr * intensity * (0.8 + Math.random() * .4) * timeScalar);
-  var fallbackIns  = Math.round((120 + tgt.cr * 280) * intensity * (1 + (STATE.time - 2023) * 0.018));
-  var fallbackDmg  = intensity >= .8 ? 'Catastrophic' : intensity >= .6 ? 'Severe' : intensity >= .4 ? 'Moderate' : 'Low';
-  var fallbackProb = (intensity * 100).toFixed(0);
+  /* No client-side fallback numbers: if the engine is unreachable we say so instead of showing invented results. */
 
   /*
    * Payload for Python layer6/api_full.py → /risk/simulate
@@ -1242,7 +1238,7 @@ qs('sim-btn').addEventListener('click',function(){
    * If your Python service runs on the same Render URL as Go, DATA_ENGINE_URL
    * equals API_BASE. If it's a separate service, update DATA_ENGINE_URL above.
    */
-  simXhr.open('POST', DATA_ENGINE_URL + '/risk/simulate', true);
+  simXhr.open('POST', API_BASE + '/risk/simulate', true);   /* via the authenticated gateway; the engine is not browser-reachable */
   Object.keys(authH()).forEach(function(k){ simXhr.setRequestHeader(k, authH()[k]); });
   simXhr.timeout = 30000;
 
@@ -1250,24 +1246,20 @@ qs('sim-btn').addEventListener('click',function(){
     btn.disabled = false; btn.textContent = 'Run Simulation';
     try {
       var d = JSON.parse(simXhr.responseText);
-      if (d.error) { renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(client estimate — ' + d.error + ')'); return; }
-      /* Normalise field names from Python response */
-      var cost  = d.cost_impact     ? usd(d.cost_impact)
-                : d.cost_usd        ? usd(d.cost_usd / 1e6)
-                : d.estimated_loss  ? usd(d.estimated_loss / 1e6)
-                : fallbackCost;
-      var dmg   = d.damage_label    || d.damage_level    || d.severity    || fallbackDmg;
-      var ins   = d.insurance_increase_pct || d.insurance_pct || d.premium_increase || fallbackIns;
-      var prob  = d.probability_pct || d.event_probability || d.flood_probability || fallbackProb;
-      renderSimResult(cost, dmg, ins, prob, null);
-    } catch(e) {
-      renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(client estimate)');
-    }
+      if (simXhr.status < 200 || simXhr.status >= 300 || d.error) { renderSimError(d.error || ('HTTP ' + simXhr.status)); return; }
+      if (d.cost_impact == null || !d.damage_label || d.insurance_increase_pct == null || d.probability_pct == null) { renderSimError('incomplete result from engine'); return; }
+      var note = d.calibrated === false ? 'Illustrative scenario model \u2014 placeholder parameters, not calibrated to observed losses' : null;
+      renderSimResult(usd(d.cost_impact), d.damage_label, d.insurance_increase_pct, d.probability_pct, note);
+    } catch(e) { renderSimError('unreadable response'); }
   };
-  simXhr.onerror  = function(){ btn.disabled=false; btn.textContent='Run Simulation'; renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(offline \u2014 client estimate)'); };
-  simXhr.ontimeout= function(){ btn.disabled=false; btn.textContent='Run Simulation'; renderSimResult(fallbackCost, fallbackDmg, fallbackIns, fallbackProb, '(timeout \u2014 client estimate)'); };
+  simXhr.onerror   = function(){ btn.disabled=false; btn.textContent='Run Simulation'; renderSimError('service unreachable'); };
+  simXhr.ontimeout = function(){ btn.disabled=false; btn.textContent='Run Simulation'; renderSimError('request timed out'); };
   simXhr.send(JSON.stringify(payload));
 });
+
+function renderSimError(msg){
+  qs('sim-result').innerHTML = '<div style="padding:8px 10px;border:1px solid var(--wire);border-radius:3px;font-size:10px;color:#EF4444">Simulation unavailable \u2014 '+String(msg).replace(/[<>&]/g,'')+'. No result is shown rather than an invented one.</div>';
+}
 
 function renderSimResult(cost, dmg, ins, prob, sourceNote){
   var note = sourceNote ? '<div style="margin-top:6px;font-size:8px;color:var(--ghost);letter-spacing:.06em">'+sourceNote+'</div>' : '';
@@ -1391,7 +1383,7 @@ qs('modal-submit').addEventListener('click',function(){
         lat:     newAsset.lat,
         lon:     newAsset.lon,
         val:     newAsset.val,
-        cr:      parseFloat((saved.composite_risk||saved.cr||saved.risk_score||Math.random()*.55+.15).toFixed(2)),
+        cr:      parseFloat((saved.composite_risk||saved.cr||saved.risk_score||0).toFixed(2))   /* unscored assets show 0, never a random number */,
         pr:      parseFloat((saved.physical_risk  ||saved.pr||0).toFixed(2)),
         tr:      parseFloat((saved.transition_risk||saved.tr||0).toFixed(2)),
         al:      0,

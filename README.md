@@ -330,183 +330,41 @@ Raksha is the geopolitical and institutional threat layer of Prexus. Named for p
 
 ## API Reference
 
-</div>
+All routes are served by the Go gateway; the Python engine is a private service reachable only from the gateway.
+Authentication: `Authorization: Bearer <JWT>` (24 h). Rate limit: 5 req/s per IP (burst 10); `/apply`: 3 per 2 min.
 
-**Base URL:** `https://prexus-intelligence.onrender.com`
-
-All protected endpoints require a Bearer JWT issued at registration.
-
-### Authentication Flow
-
-```
-Client                                    Prexus API
-  │                                           │
-  ├── POST /api/v1/auth/register ────────────►│
-  │   { orgName, email, password }            │
-  │◄──────────────── 200 { token, org_id } ───┤  JWT · 15 min · Authorization
-  │                                           │  ABAC Clearance assigned
-  │                                           │
-  ├── POST /api/v1/meteorium/run ────────────►│
-  │◄──────────── 200 { risk_score, VaR, ... } ┤  Level 2 clearance required
-  │                                           │
-```
-
-### Endpoint Reference
-
-<details>
-<summary><strong>GET /health</strong> — Liveness probe</summary>
-
-```json
-// Response 200
-{
-  "status": "operational",
-  "version": "2.0.0-prx",
-  "ts": "2025-01-01T00:00:00Z"
-}
-```
-</details>
-
-<details>
-<summary><strong>POST /api/v1/auth/register</strong> — Provision organisation</summary>
-
-```json
-// Request body
-{
-  "org_name":  "Apex Capital Management",
-  "email":     "operator@apex.com",
-  "password":  "***************",
-  "org_type":  "FINANCIAL",
-  "tier":      "ENTERPRISE"
-}
-
-// Response 201
-{
-  "ok": true,
-  "token":   "eyJhR...",
-  "org_id":  "ORG-7f3a9c2d",
-  "user_id": "USR-1a2b3c4d",
-  "role":    "ORG_ADMIN",
-  "clearance": 2
-}
-```
-</details>
-
-<details>
-<summary><strong>POST /api/v1/meteorium/run</strong> — Full Monte Carlo climate risk simulation</summary>
-
-*Required headers:* `Authorization: Bearer <token>` · *Required clearance: Level 2 · Role: `ORG_ADMIN`*
-
-```json
-// Request body
-{
-  "horizonDays":      365,
-  "scenario":         "disorderly",
-  "UrbanDensity":     0.65,
-  "InsuranceDrag":    0.40,
-  "LiquidityShock":   0.30,
-  "AssetValue":       125000000
-}
-
-// Response 200
-{
-  "ok": true,
-  "mission_id": "MIS-8f2a5b9c",
-  "intelligence_outputs": {
-    "risk_score":     0.78,
-    "var_95":         14.2,
-    "cvar_95":        21.1,
-    "expected_loss":  24879000,
-    "risk_band":      "HIGH"
-  },
-  "simulation_params": {
-    "iterations":    10000,
-    "horizon_days":  3600,
-    "scenario":      "disorderly"
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>POST /risk/asset</strong> — Single asset environmental risk (Python intelligence layer)</summary>
-
-| Parameter | Type | Description |
+| Method · Path | Auth | Purpose |
 |---|---|---|
-| `asset_id` | string | Unique asset identifier |
-| `lat` | float | Latitude |
-| `lon` | float | Longitude |
-| `country_code` | string | ISO 3166-1 alpha-2 |
-| `valuation` | float | Asset value in USD |
-| `scenario` | string | `baseline` \| `disorderly` \| `failed` |
-| `horizon_days` | int | 180 \| 365 \| 1095 |
+| `GET /health` · `GET /ready` | none | liveness · readiness (database) |
+| `POST /register` · `POST /login` | none | create account (role `user`) · obtain JWT |
+| `POST /apply` | none | access / procurement application (stored in Postgres, emailed if SMTP configured) |
+| `GET/POST/PUT/DELETE /assets[/:id]` | `assets:*` | the caller's assets |
+| `GET /alerts` | `assets:read` | alerts derived from the caller's asset scores |
+| `POST /risk/asset` · `/risk/portfolio` · `/risk/stress-test` | `risk:run` | Monte Carlo (Rust core) via the engine |
+| `POST /risk/simulate` | `risk:run` | scenario simulation (`catmodel-v0`, **uncalibrated**) |
+| `GET /risk/health` · `/sources` · `/lake/stats` · `/lake/files` | `risk:run` | engine status and data catalogue |
+| `POST /claude` · `/openai` · `/gemini` · `/chat` · `/analyze` | `risk:run` + daily quota | the single LLM gateway (model allowlist, `*_BASE_URL` for local models) |
+| `GET/PUT /me` · `GET /conduit/tools` | auth | profile · Conduit MCP tool list |
 
-</details>
+Errors: `400` validation · `401` missing/invalid token · `403` permission · `404` · `413` payload too large ·
+`429` rate/quota · `502/503` upstream unavailable (details are logged, never returned).
 
-<details>
-<summary><strong>POST /risk/portfolio</strong> — Portfolio-level aggregated risk</summary>
-
-Aggregate risk exposure across multiple assets.
-
-*Returns: composite risk score, expected portfolio loss, per-asset breakdown, scenario stress estimates, VaR/CVaR at portfolio level.*
-
-</details>
-
-### HTTP Status Codes
-
-| Code | Meaning |
-|---|---|
-| 200 | Success |
-| 201 | Resource created (register) |
-| 400 | Malformed request body |
-| 401 | Missing or expired JWT |
-| 403 | Insufficient clearance / CORS origin blocked |
-| 429 | Rate limit exceeded (20 req / 10 s per IP) |
-| 500 | Internal server error |
-
-<br/>
-
----
-
-<div align="center">
 
 ## Security Model
 
-</div>
+| Layer | Implemented |
+|---|---|
+| Transport / CORS | explicit origin allow-list, no credentials, TLS at the platform edge |
+| Authentication | JWT (HS256, 24 h, algorithm pinned); bcrypt password hashing (cost 10) with a dummy-hash timing defence |
+| Authorisation | RBAC (`admin`/`user`/`viewer` → permissions). **ABAC** (clearance, compartments, TLP, purpose) lives in `packages/prexus_core` and is enforced by Raksha |
+| Abuse control | per-IP rate limit (5 req/s, burst 10), strict `/apply` limiter, per-user daily AI quota, body-size caps |
+| Service-to-service | engine is a private service and requires `ENGINE_SECRET` on every route; it refuses to boot without it |
+| Audit | tamper-evident ledger (SHA-256 chain + Ed25519 signed head) in the air-gap control plane and Raksha; the Go gateway still logs to stdout only |
+| Supply chain | CodeQL (4 languages), `govulncheck`, `pip-audit`, `cargo audit`, gitleaks, SLSA provenance for release artifacts |
 
-```
-Layer 1 — TLS 1.3          Edge encryption (client layer)
-Layer 2 — JWT + ABAC        Role-based access, 15 min TTL
-Layer 3 — Rate Limiting     50 req/s max, 15 sec TLS autosave
-Layer 4 — CORS Policy       Origin allowlist per environment
-Layer 5 — Audit Ledger      All actions logged to tamper-evident chain
-Layer 6 — Password Hashing  SHA-256 + 100k iterations
-```
+Not yet implemented: token revocation / refresh tokens, per-organisation tenancy in the gateway, HSM-backed key management,
+third-party penetration test. See `docs/AUDIT_FIXES.md`.
 
-### ABAC Role Matrix
-
-| Role | Clearance | Accessible Endpoints |
-|---|---|---|
-| `PUBLIC` | 0 | `/health` |
-| `ORG_VIEWER` | 1 | `/health`, `/auth/*` |
-| `ORG_ADMIN` | 2 | All above + `/meteorium/run` |
-| `SYS_OPERATOR` | 3 | All above + admin routes |
-| `SOVEREIGN` | 5 | All routes including `/raksha/*` |
-
-### Audit Ledger
-
-Every authenticated action is recorded in a tamper-evident hash-chained log:
-
-```
-{ action_org, ... } ──► hash: SHA-256 ──► prev_hash
-                                           │
-Tamper entry 0 ──► all subsequent headers invalidated
-```
-
-<br/>
-
----
-
-<div align="center">
 
 ## Deployment
 
@@ -519,7 +377,7 @@ Tamper entry 0 ──► all subsequent headers invalidated
 | Go API Gateway | Render Web Service | Auth, routing, audit, rate limiting |
 | Python Intelligence | Render Web Service | Analytics, risk modelling |
 | Frontend | Netlify CDN | Static web delivery |
-| Secrets | Sentry CDN / Render Env Vars | API keys, JWT secret (auto-generated) |
+| Secrets | Render env-var groups (`generateValue`) / Docker secrets in the air-gap stack | JWT + engine secrets are generated, never committed |
 
 ### Quick Deploy (15 min)
 
@@ -570,7 +428,7 @@ curl localhost:8080/health
 | ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white) | API gateway, middleware, audit ledger | 1.22 |
 | ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) | Analytics, risk models, IPCC integration | 3.11+ |
 | ![Rust](https://img.shields.io/badge/Rust-CE422B?style=flat-square&logo=rust&logoColor=white) | Monte Carlo engine, VaR/CVaR numerics | 1.77+ |
-| ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=flat-square&logo=postgresql&logoColor=white) | Structured API endpoints, persistence | 5.10+ |
+| ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=flat-square&logo=postgresql&logoColor=white) | Structured API endpoints, persistence | 13+ |
 | ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white) | Predictive intelligence dashboard | 18 |
 | CesiumJS | 3D globe, geospatial visualisation | 1.114 |
 | Three.js | WebGL heatwave overlays | r128 |
@@ -599,10 +457,10 @@ curl localhost:8080/health
 ✅  v1.4  Meteorium Engine — Physical risk scoring, Monte Carlo,
           API Gateway · Meteorium UI with 3D globe
 
-🔄  v1.5  Raksha Module — 360-degree clearance threat intelligence,
+🧪  v1.5  Raksha Module — 360-degree clearance threat intelligence,
           geopolitical risk modelling, sovereign operator dashboard
 
-🔄  v1.6  Healtho Module — Population health risk engine,
+⬜  v1.6  Healtho Module — Population health risk engine,
           bio-systemic shock propagation, epidemic modelling
 
 ⬜  v1.7  PostgreSQL Persistence — Full asset history, org workspaces,
@@ -629,16 +487,16 @@ curl localhost:8080/health
 |---|---|---|---|
 | Health / Liveness Probe | ✅ Live | Core | Public |
 | Organisation Registration | ✅ Live | Core | Public |
-| JWT Authentication + ABAC | ✅ Live | Core | Public |
+| JWT Authentication + RBAC | ✅ Live | Core | Public |
 | Monte Carlo Simulation | ✅ Live | Meteorium | Level 2 |
 | VaR 95% / CVaR 95% | ✅ Live | Meteorium | Level 2 |
 | Tamper-Evident Audit | ✅ Live | Core | Level 2 |
 | 3D Climate Globe | ✅ Live | Meteorium | Level 2 |
 | Meto AI (Claude / GPT-4o / Gemini) | ✅ Live | Meteorium | Level 2 |
 | Portfolio Aggregation | 🔄 Progress | Meteorium | Level 2 |
-| PostgreSQL Persistence | 🔄 Progress | Core | — |
-| Raksha Threat Intelligence | 🔨 Planned | Raksha | Level 5 |
-| Healtho Risk Engine | 🔨 Planned | Healtho | Level 3 |
+| PostgreSQL Persistence | ✅ Gateway (users, assets, applications) · ⬜ engine lake (SQLite) | Core | — |
+| Raksha Threat Intelligence | 🧪 v0 scaffold | Raksha | ABAC in `prexus_core` |
+| Healtho Risk Engine | 📝 Planned (no code) | Healtho | — |
 | Macro-Economic Module | 🔨 Planned | Macro | Level 3 |
 | Geospatial Signals | 🔨 Planned | Geo | Level 4 |
 | Supply Chain Intelligence | 🔨 Planned | Supply | Level 3 |

@@ -30,24 +30,31 @@ const STRESS_SCENARIOS: &[(&str, &str)] = &[
 /// Scenario loss multiplier — matches Python SCENARIO_MULTIPLIERS
 pub fn scenario_multiplier(scenario: &str) -> f64 {
     match scenario.to_lowercase().as_str() {
-        "ssp119" | "paris"  => 1.40,
-        "ssp245"            => 1.20,
-        "baseline"          => 1.00,
-        "ssp370"            => 0.85,
-        "ssp585" | "failed" => 0.70,
-        _                   => 1.00,
+        // Must equal data-engine/python/core/config.py SCENARIO_MULTIPLIERS.
+        // (v1 had these REVERSED — Paris 1.40 … SSP5-8.5 0.70 — so the Rust path ranked
+        // the hottest scenario as the least risky. tests/test_rust_parity.py now guards this.)
+        "ssp119" | "paris"    => 0.88,
+        "ssp245" | "baseline" => 1.12,
+        "ssp370"              => 1.24,
+        "ssp585" | "failed"   => 1.38,
+        _                     => 1.00,
     }
 }
 
 /// Asset vulnerability coefficient — matches Python ASSET_VULNERABILITY
 pub fn asset_vulnerability(asset_type: &str) -> f64 {
     match asset_type.to_lowercase().as_str() {
-        "agriculture"    => 1.30,
-        "coastal"        => 1.20,
-        "infrastructure" => 1.00,
-        "real_estate"    => 0.90,
-        "technology"     => 0.70,
-        _                => 1.00,
+        // Must equal data-engine/python/core/config.py ASSET_VULNERABILITY.
+        "agriculture"                => 1.35,
+        "energy"                     => 1.20,
+        "infrastructure" | "transport" => 1.15,
+        "real estate" | "real_estate"  => 1.10,
+        "manufacturing"              => 1.08,
+        "technology"                 => 1.05,
+        "healthcare"                 => 1.00,
+        "financial"                  => 0.85,
+        "coastal"                    => 1.20,
+        _                            => 1.00,
     }
 }
 
@@ -81,11 +88,11 @@ pub fn run_asset_mc(
 
             // Physical and transition perturbation
             let p = Normal::new(physical_risk,   0.12)
-                .unwrap()
+                .expect("constant std-dev is valid")
                 .sample(&mut rng)
                 .clamp(0.0, 1.0);
             let t = Normal::new(transition_risk, 0.10)
-                .unwrap()
+                .expect("constant std-dev is valid")
                 .sample(&mut rng)
                 .clamp(0.0, 1.0);
 
@@ -94,14 +101,14 @@ pub fn run_asset_mc(
 
             // Loss severity — log-normal tail matching empirical asset loss distributions
             let severity  = LogNormal::new(-1.60_f64, 0.65_f64)
-                .unwrap()
+                .expect("constant parameters are valid")
                 .sample(&mut rng);
 
             (composite * severity * asset_value_mm).min(asset_value_mm * 0.95_f64)
         })
         .collect();
 
-    losses.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    losses.sort_by(|a, b| a.total_cmp(b)); // total order: NaN can no longer panic the sort
 
     let mean_loss = losses.iter().sum::<f64>() / n_draws as f64;
     let idx95     = ((n_draws as f64 * 0.95) as usize).min(n_draws - 1);
@@ -159,4 +166,83 @@ pub fn run_stress_scenarios(
             (label.to_string(), cr, var95, loss)
         })
         .collect()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const N: usize = 20_000;
+
+    #[test]
+    fn scenario_multipliers_increase_with_warming() {
+        let order = ["paris", "baseline", "ssp370", "ssp585"];
+        for w in order.windows(2) {
+            assert!(scenario_multiplier(w[0]) < scenario_multiplier(w[1]), "{} !< {}", w[0], w[1]);
+        }
+        assert_eq!(scenario_multiplier("SSP585"), scenario_multiplier("failed"));
+    }
+
+    #[test]
+    fn deterministic_for_fixed_seed() {
+        let a = run_asset_mc(0.6, 0.4, 100.0, "baseline", "infrastructure", 365, N, 7);
+        let b = run_asset_mc(0.6, 0.4, 100.0, "baseline", "infrastructure", 365, N, 7);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn outputs_are_bounded_and_ordered() {
+        let (cr, var95, cvar95, mean, conf) = run_asset_mc(0.7, 0.5, 250.0, "ssp585", "agriculture", 1000, N, 3);
+        assert!((0.0..=1.0).contains(&cr));
+        assert!((0.0..=0.95).contains(&var95), "var95 {}", var95);
+        assert!(cvar95 >= var95 - 1e-12, "cvar {} < var {}", cvar95, var95);
+        assert!(mean > 0.0 && mean <= 0.95 * 250.0);
+        assert!((0.60..=0.97).contains(&conf));
+    }
+
+    #[test]
+    fn loss_increases_with_risk_and_scenario() {
+        let lo = run_asset_mc(0.2, 0.2, 100.0, "baseline", "infrastructure", 365, N, 11).3;
+        let hi = run_asset_mc(0.8, 0.8, 100.0, "baseline", "infrastructure", 365, N, 11).3;
+        assert!(hi > lo);
+        let cool = run_asset_mc(0.5, 0.5, 100.0, "paris", "infrastructure", 365, N, 11).3;
+        let hot = run_asset_mc(0.5, 0.5, 100.0, "ssp585", "infrastructure", 365, N, 11).3;
+        assert!(hot > cool, "hot-house scenario must not be cheaper than Paris");
+    }
+
+    #[test]
+    fn stress_test_is_ordered_by_warming() {
+        let r = run_stress_scenarios(0.5, 0.5, 100.0, "infrastructure", N);
+        let get = |k: &str| r.iter().find(|x| x.0 == k).unwrap().3;
+        assert!(get("Paris 1.5°C") < get("Baseline"));
+        assert!(get("Baseline") < get("SSP3-7.0"));
+        assert!(get("SSP3-7.0") < get("SSP5-8.5"));
+        assert_eq!(r.len(), 6);
+    }
+
+    #[test]
+    fn nan_input_cannot_panic_the_sort() {
+        // Boundary validation rejects NaN; this proves the core no longer panics if it slips through.
+        let _ = run_asset_mc(f64::NAN, 0.5, 100.0, "baseline", "infrastructure", 365, 1_000, 5);
+    }
+
+    #[test]
+    fn single_draw_is_fine() {
+        let (_, var95, cvar95, mean, _) = run_asset_mc(0.5, 0.5, 10.0, "baseline", "infrastructure", 30, 1, 9);
+        assert!(var95 >= 0.0 && cvar95 >= 0.0 && mean >= 0.0);
+    }
+
+    #[test]
+    fn validation_rejects_bad_inputs() {
+        use crate::validate_asset_inputs as v;
+        assert!(v(0.5, 0.5, 10.0, 365, 1000).is_ok());
+        for bad in [
+            v(f64::NAN, 0.5, 10.0, 365, 1000), v(1.5, 0.5, 10.0, 365, 1000), v(0.5, -0.1, 10.0, 365, 1000),
+            v(0.5, 0.5, 0.0, 365, 1000), v(0.5, 0.5, f64::INFINITY, 365, 1000), v(0.5, 0.5, 10.0, -1, 1000),
+            v(0.5, 0.5, 10.0, 365, 0), v(0.5, 0.5, 10.0, 365, crate::MAX_DRAWS + 1),
+        ] {
+            assert!(bad.is_err());
+        }
+    }
 }

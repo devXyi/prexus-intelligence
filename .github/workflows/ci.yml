@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gateway:
+    name: Go gateway (vet, test, race, Postgres integration, govulncheck)
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend/backend } }
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: pw, POSTGRES_DB: prexus }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PREXUS_TEST_DATABASE_URL: postgres://postgres:pw@127.0.0.1:5432/prexus?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25.13", cache: false }
+      - name: Resolve Go module checksums
+        run: go mod tidy
+        working-directory: backend/backend
+      - run: go vet ./...
+        working-directory: backend/backend
+      - run: go test ./... -race -count=1
+        working-directory: backend/backend
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+        working-directory: backend/backend
+
+  engine:
+    name: Python engine (Rust core + tests + pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: data-engine/python/requirements.txt }
+      - run: pip install -r data-engine/python/requirements.txt pytest maturin pip-audit
+      - name: Build Rust extension wheel and install it
+        run: maturin build --release -o /tmp/wheels -m data-engine/rust/Cargo.toml && pip install /tmp/wheels/*.whl
+      - run: python -m pytest data-engine/python/tests -q
+      - run: pip-audit -r data-engine/python/requirements.txt
+
+  rust:
+    name: Rust (test, audit)
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: data-engine/rust } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - run: cargo update -p pyo3 --precise 0.29.3
+      - run: cargo test --verbose
+      - run: cargo install cargo-audit --locked --version 0.22.1 && cargo audit
+
+  platform:
+    name: prexus_core + Raksha (needs Node for cross-language tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ./packages/prexus_core ./modules/raksha pytest pip-audit httpx2
+      - run: python -m pytest packages/prexus_core modules/raksha -q
+      - run: pip-audit
+
+  airgap:
+    name: Air-gap control plane (tests, then the same suite with NO network)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node --test
+        working-directory: airgap/control-plane
+      - name: Re-run inside a network namespace with only loopback (proves zero-egress operation)
+        run: sudo env "PATH=$PATH" ./airgap/tools/netns-test.sh
+
+  secrets:
+    name: Secret scan (full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
