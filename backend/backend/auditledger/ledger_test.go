@@ -70,4 +70,32 @@ func TestTamperedEventFailsClosed(t *testing.T) {
 
 func TestMissingSigningKeyFails(t *testing.T) {
 	if _,err:=Open(filepath.Join(t.TempDir(),"ledger"),filepath.Join(t.TempDir(),"missing.pem"));err==nil{t.Fatal("expected missing signing key to fail")}
+func TestTornTailRecoveryIsRecorded(t *testing.T) {
+	dir, key := filepath.Join(t.TempDir(), "ledger"), writeTestKey(t)
+	l, err := Open(dir, key)
+	if err != nil { t.Fatal(err) }
+	if _, err := l.Append("operator", "test.write", "resource", map[string]any{"status": 200}); err != nil { t.Fatal(err) }
+	if err := l.Close(); err != nil { t.Fatal(err) }
+	f, err := os.OpenFile(filepath.Join(dir, "ledger.ndjson"), os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil { t.Fatal(err) }
+	if _, err := f.Write([]byte("{\\"torn\\":")); err != nil { t.Fatal(err) }
+	if err := f.Close(); err != nil { t.Fatal(err) }
+	l, err = Open(dir, key)
+	if err != nil { t.Fatal(err) }
+	defer l.Close()
+	result := l.Verify()
+	if !result.Valid || result.HeadSequence != 2 { t.Fatalf("recovery not recorded: %+v", result) }
+	raw, err := os.ReadFile(filepath.Join(dir, "ledger.ndjson"))
+	if err != nil { t.Fatal(err) }
+	if !strings.Contains(string(raw), "ledger.recovered") { t.Fatal("expected ledger.recovered event") }
+}
+
+func TestInsecureSigningKeyPermissionsFail(t *testing.T) {
+	key := writeTestKey(t)
+	if err := os.Chmod(key, 0644); err != nil { t.Fatal(err) }
+	if _, err := Open(filepath.Join(t.TempDir(), "ledger"), key); err == nil {
+		t.Fatal("expected broad signing-key permissions to fail")
+	}
+}
+
 }
