@@ -10,7 +10,7 @@ import (
 )
 
 func TestValidateConfig_ProductionFailsClosed(t *testing.T) {
-	for _, k := range []string{"JWT_SECRET", "DATABASE_URL", "DB_HOST", "ENGINE_SECRET", "DATA_ENGINE_URL", "ALLOWED_ORIGINS", "TRUSTED_PROXIES"} {
+	for _, k := range []string{"JWT_SECRET", "DATABASE_URL", "DB_HOST", "ENGINE_SECRET", "DATA_ENGINE_URL", "ALLOWED_ORIGINS", "TRUSTED_PROXIES", "AUDIT_LEDGER_DIR", "AUDIT_LEDGER_PRIVATE_KEY"} {
 		t.Setenv(k, "")
 	}
 	fatal, _ := validateConfig("production")
@@ -25,6 +25,8 @@ func TestValidateConfig_ProductionFailsClosed(t *testing.T) {
 	t.Setenv("ENGINE_SECRET", "e")
 	t.Setenv("DATA_ENGINE_URL", "http://engine.internal")
 	t.Setenv("ALLOWED_ORIGINS", "https://prexus.in")
+	t.Setenv("AUDIT_LEDGER_DIR", filepath.Join(t.TempDir(), "audit-ledger"))
+	t.Setenv("AUDIT_LEDGER_PRIVATE_KEY", filepath.Join(t.TempDir(), "audit-key.pem"))
 	if fatal, _ := validateConfig("production"); len(fatal) != 0 {
 		t.Errorf("complete config rejected: %v", fatal)
 	}
