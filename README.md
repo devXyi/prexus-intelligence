@@ -433,7 +433,7 @@ Errors: `400` validation · `401` missing/invalid token · `403` permission · `
 | Authorisation | RBAC (`admin`/`user`/`viewer` → permissions). **ABAC** (clearance, compartments, TLP, purpose) lives in `packages/prexus_core` and is enforced by Raksha |
 | Abuse control | per-IP rate limit (5 req/s, burst 10), strict `/apply` limiter, per-user daily AI quota, body-size caps |
 | Service-to-service | engine is a private service and requires `ENGINE_SECRET` on every route; it refuses to boot without it |
-| Audit | tamper-evident ledger (SHA-256 chain + Ed25519 signed head) in the air-gap control plane and Raksha; the Go gateway still logs to stdout only |
+| Audit | tamper-evident ledger (SHA-256 chain + Ed25519 signed head) in air-gap, Raksha, and the Go gateway (production requires durable ledger storage and a private signing key) |
 | Supply chain | CodeQL (4 languages), `govulncheck`, `pip-audit`, `cargo audit`, gitleaks, SLSA provenance for release artifacts |
 
 Not yet implemented: token revocation / refresh tokens, per-organisation tenancy in the gateway, HSM-backed key management,
@@ -467,7 +467,7 @@ flowchart LR
     style F fill:#102A43,stroke:#55D6FF,color:#EAFBFF
 ```
 
-This is a **tested development implementation, not an air-gap certification or a claim that every deployment is physically disconnected**. The runbook still needs deployment-specific verification. SSO/PKI integration, high availability, hardware security module (HSM)-backed key management, and full gateway-to-ledger integration remain open; the Go gateway's audit output is still stdout-based. See [air-gap overview](./airgap/README.md), [runbook](./docs/AIRGAP_RUNBOOK.md), [ledger specification](./docs/LEDGER_SPEC.md), and [audit/fix status](./docs/AUDIT_FIXES.md).
+This is a **tested development implementation, not an air-gap certification or a claim that every deployment is physically disconnected**. The runbook still needs deployment-specific verification. SSO/PKI integration, high availability, and hardware security module (HSM)-backed key management remain open. The Go gateway now has signed file-ledger middleware, but its ledger is not transactionally coupled to PostgreSQL mutations and requires deployment-specific durable storage and key provisioning. See [air-gap overview](./airgap/README.md), [runbook](./docs/AIRGAP_RUNBOOK.md), [gateway ledger runbook](./docs/GATEWAY_AUDIT_LEDGER.md), [ledger specification](./docs/LEDGER_SPEC.md), and [audit/fix status](./docs/AUDIT_FIXES.md).
 
 ## 🧪 Test & Verification Snapshot
 
