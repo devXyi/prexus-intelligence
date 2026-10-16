@@ -1,39 +1,103 @@
 <div align="center">
 
-<br/>
+<a href="https://github.com/devXyi/prexus-intelligence">
+  <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&height=220&color=0:050816,45:102A43,100:00D4FF&text=PREXUS%20INTELLIGENCE&fontColor=EAFBFF&fontSize=42&fontAlignY=38&desc=Sovereign%20Predictive%20Intelligence&descAlignY=58&animation=fadeIn" alt="Prexus Intelligence animated banner" />
+</a>
 
-```
-██████╗ ██████╗ ███████╗██╗  ██╗██╗   ██╗███████╗
-██╔══██╗██╔══██╗██╔════╝╚██╗██╔╝██║   ██║██╔════╝
-██████╔╝██████╔╝█████╗   ╚███╔╝ ██║   ██║███████╗
-██╔═══╝ ██╔══██╗██╔══╝   ██╔██╗ ██║   ██║╚════██║
-██║     ██║  ██║███████╗██╔╝ ██╗╚██████╔╝███████║
-╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-```
-
-### **Sovereign AI Intelligence System**
-
-*Anticipating systemic risk before it materialises*
+<a href="https://git.io/typing-svg">
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=500&size=18&pause=1200&color=55D6FF&center=true&vCenter=true&width=760&lines=Anticipate+systemic+risk.;Explore+scenarios%2C+not+just+snapshots.;Turn+uncertainty+into+structured+decisions." alt="Animated tagline: anticipate risk, explore scenarios, structure decisions" />
+</a>
 
 <br/>
 
-[![Status](https://img.shields.io/badge/Status-Early_Stage_Prototype-0EA5E9?style=flat-square&logoColor=white)](.)
-[![Engine](https://img.shields.io/badge/Engine-Monte_Carlo_%2B_Rust-EF4444?style=flat-square)](.)
-[![Clearance](https://img.shields.io/badge/Classification-Institutional_Use-F59E0B?style=flat-square)](.)
-[![License UI](https://img.shields.io/badge/UI%2FDesign-Apache_2.0-10B981?style=flat-square)](./LICENSE)
-[![License Core](https://img.shields.io/badge/Backend%2FEngine-Proprietary-8B5CF6?style=flat-square)](./NOTICE)
+[![Status](https://img.shields.io/badge/Stage-Early--stage%20prototype-0EA5E9?style=for-the-badge)](https://github.com/devXyi/prexus-intelligence)
+[![Engine](https://img.shields.io/badge/Compute-Python%20%2B%20Rust-EF4444?style=for-the-badge)](https://github.com/devXyi/prexus-intelligence)
+[![Security](https://img.shields.io/badge/Security-Auth%20%7C%20RBAC%20%7C%20Audit-8B5CF6?style=for-the-badge)](https://github.com/devXyi/prexus-intelligence)
+[![License](https://img.shields.io/badge/License-See%20NOTICE-10B981?style=for-the-badge)](./NOTICE)
 
 <br/>
 
-*For governments, financial institutions, and enterprise operators*
+**A risk-intelligence platform exploring how complex systems can be modelled before decisions are made.**
 
----
+[Explore the platform](#-explore-prexus) · [Architecture](#-system-map) · [Modules](#-intelligence-modules) · [API](#-api-reference) · [Security](#-security-model) · [Roadmap](#-roadmap)
 
-[Platform Overview](#what-is-prexus) · [Architecture](#architecture) · [Intelligence Modules](#intelligence-modules) · [API Reference](#api-reference) · [Licensing](#licensing)
+<br/>
+
+<a href="#-explore-prexus"><img src="https://img.shields.io/badge/↓%20Scroll%20to%20explore-0B1220?style=flat-square&labelColor=00B4D8&color=0B1220" alt="Scroll to explore" /></a>
 
 </div>
 
-<br/>
+---
+
+## ✦ Explore Prexus
+
+Pick a starting point — each panel expands right here in the README.
+
+<details open>
+<summary><strong>🌐 Platform overview</strong></summary>
+
+Prexus is an early-stage, multi-module intelligence platform focused on risk modelling, scenario analysis, and probabilistic decision support across climate, infrastructure, and other complex domains.
+
+**Design principle:** make uncertainty explicit; do not present forecasts as certainty.
+
+</details>
+
+<details>
+<summary><strong>🧮 How the simulation flow works</strong></summary>
+
+```mermaid
+flowchart TD
+    A["Define assets & assumptions"] --> B["Ingest available signals"]
+    B --> C["Build scenario distributions"]
+    C --> D["Run simulation engine"]
+    D --> E["Summarise risk metrics"]
+    E --> F["Review evidence & limitations"]
+    F --> G["Decision support"]
+    style A fill:#102A43,stroke:#55D6FF,color:#EAFBFF
+    style D fill:#102A43,stroke:#55D6FF,color:#EAFBFF
+    style G fill:#102A43,stroke:#55D6FF,color:#EAFBFF
+```
+
+The diagram is a conceptual flow, not a claim that every source or model is enabled in every deployment.
+
+</details>
+
+<details>
+<summary><strong>🧭 Jump into a module</strong></summary>
+
+| Module | Focus | Current framing |
+|---|---|---|
+| [Meteorium](#-meteorium--climate-risk-intelligence) | Physical climate exposure and risk metrics | First climate-risk module |
+| [Raksha](#-raksha--threat-intelligence-module) | Threat-signal correlation and situational awareness | In development |
+| [Healtho](#-healtho--health-intelligence-module) | Population-health and system-load scenarios | Planned / in build |
+
+</details>
+
+<details>
+<summary><strong>🔌 API quick peek</strong></summary>
+
+| Need | Endpoint |
+|---|---|
+| Check service liveness | `GET /health` |
+| Check readiness | `GET /ready` |
+| Create an account | `POST /register` |
+| Sign in | `POST /login` |
+| Submit an access application | `POST /apply` |
+| Read applications (admin permission required) | `GET /admin/applications` |
+
+See the [full API reference](#-api-reference). Actual availability depends on the deployed gateway configuration.
+
+</details>
+
+<details>
+<summary><strong>🛡️ Security & maturity notes</strong></summary>
+
+- Authentication and role-based permissions are implemented in the API gateway.
+- The repository includes automated security and dependency checks.
+- Some capabilities remain planned or in development; see the [capabilities matrix](#-platform-capabilities-matrix).
+- This README is not a security certification, production-readiness claim, or guarantee of forecast accuracy.
+
+</details>
 
 ---
 
@@ -154,9 +218,12 @@ To build a **sovereign intelligence layer** that enables:
 
 <div align="center">
 
-## Platform Architecture
+## 🧩 System Map
 
 </div>
+
+<details>
+<summary><strong>🧱 Expand the architecture overview</strong></summary>
 
 Prexus is built as a **distributed, polyglot system** — each layer uses the best-fit language for its role.
 
@@ -195,13 +262,15 @@ Prexus is built as a **distributed, polyglot system** — each layer uses the be
 | Data Adapters | Python | External data ingestion | Climate, environmental, financial signal normalisation |
 | Audit Ledger | Go | Immutable event log | SHA-256 hash-chained tamper-evident records |
 
+</details>
+
 <br/>
 
 ---
 
 <div align="center">
 
-## Intelligence Modules
+## 🛰️ Intelligence Modules
 
 </div>
 
@@ -328,7 +397,7 @@ Raksha is the geopolitical and institutional threat layer of Prexus. Named for p
 
 <div align="center">
 
-## API Reference
+## 🔌 API Reference
 
 All routes are served by the Go gateway; the Python engine is a private service reachable only from the gateway.
 Authentication: `Authorization: Bearer <JWT>` (24 h). Rate limit: 5 req/s per IP (burst 10); `/apply`: 3 per 2 min.
@@ -351,7 +420,7 @@ Errors: `400` validation · `401` missing/invalid token · `403` permission · `
 `429` rate/quota · `502/503` upstream unavailable (details are logged, never returned).
 
 
-## Security Model
+## 🛡️ Security Model
 
 | Layer | Implemented |
 |---|---|
@@ -450,7 +519,7 @@ curl localhost:8080/health
 
 <div align="center">
 
-## Roadmap
+## 🚀 Roadmap
 
 </div>
 
@@ -480,7 +549,7 @@ curl localhost:8080/health
 
 <div align="center">
 
-## Platform Capabilities Matrix
+## 📊 Platform Capabilities Matrix
 
 </div>
 
