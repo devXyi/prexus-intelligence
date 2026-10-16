@@ -60,6 +60,13 @@ func Open(dir, privateKeyPath string) (*Ledger, error) {
 	if keyInfo.Mode().Perm()&0077 != 0 {
 		return nil, errors.New("audit signing key permissions are too broad; require owner-only access (0600)")
 	}
+	keyInfo, err := os.Stat(privateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat audit signing key: %w", err)
+	}
+	if keyInfo.Mode().Perm()&0077 != 0 {
+		return nil, errors.New("audit signing key permissions are too broad; require owner-only access (0600)")
+	}
 	keyBytes, err := os.ReadFile(privateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("read audit signing key: %w", err)
