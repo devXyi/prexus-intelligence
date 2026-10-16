@@ -149,6 +149,11 @@ func validateConfig(env string) (fatal, warn []string) {
 				fatal = append(fatal, k+" is still the placeholder from .env.example")
 			}
 		}
+		for _, k := range []string{"AUDIT_LEDGER_DIR", "AUDIT_LEDGER_PRIVATE_KEY"} {
+			if strings.TrimSpace(os.Getenv(k)) == "" {
+				fatal = append(fatal, k+" is required in production for tamper-evident gateway auditing")
+			}
+		}
 	}
 	if s := os.Getenv("JWT_SECRET"); s == "" {
 		fatal = append(fatal, "JWT_SECRET is not set")
@@ -222,7 +227,7 @@ func buildRouter() *gin.Engine {
 
 	quota := AIQuotaMiddleware(newQuotaStore(aiDailyQuota()))
 
-	auth := r.Group("/", AuthMiddleware())
+	auth := r.Group("/", AuthMiddleware(), AuditMiddleware())
 	{
 		auth.GET("/assets", RequirePermission("assets:read"), handleGetAssets)
 		auth.POST("/assets", RequirePermission("assets:create"), handleCreateAsset)
@@ -274,6 +279,25 @@ func main() {
 			log.Printf("✗ config: %s", f)
 		}
 		log.Fatal("refusing to start: invalid configuration")
+	}
+
+	auditDir, auditKey := strings.TrimSpace(os.Getenv("AUDIT_LEDGER_DIR")), strings.TrimSpace(os.Getenv("AUDIT_LEDGER_PRIVATE_KEY"))
+	if auditDir != "" || auditKey != "" {
+		ledger, err := auditledger.Open(auditDir, auditKey)
+		if err != nil {
+			log.Fatalf("audit ledger initialization failed: %v", err)
+		}
+		gatewayAuditLedger = ledger
+		defer func() {
+			if err := ledger.Close(); err != nil {
+				log.Printf("audit ledger close failed: %v", err)
+			}
+		}()
+		log.Printf("✓ Tamper-evident gateway audit ledger enabled")
+	} else if env == "production" {
+		log.Fatal("AUDIT_LEDGER_DIR and AUDIT_LEDGER_PRIVATE_KEY are required in production")
+	} else {
+		log.Printf("⚠ audit ledger disabled in non-production environment")
 	}
 
 	dataEngineURL := getDataEngineURL()
