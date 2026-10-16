@@ -70,6 +70,8 @@ func TestTamperedEventFailsClosed(t *testing.T) {
 
 func TestMissingSigningKeyFails(t *testing.T) {
 	if _,err:=Open(filepath.Join(t.TempDir(),"ledger"),filepath.Join(t.TempDir(),"missing.pem"));err==nil{t.Fatal("expected missing signing key to fail")}
+}
+
 func TestTornTailRecoveryIsRecorded(t *testing.T) {
 	dir, key := filepath.Join(t.TempDir(), "ledger"), writeTestKey(t)
 	l, err := Open(dir, key)
@@ -98,4 +100,3 @@ func TestInsecureSigningKeyPermissionsFail(t *testing.T) {
 	}
 }
 
-}
