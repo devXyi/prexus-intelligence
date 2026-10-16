@@ -163,39 +163,17 @@ func migrate() error {
 	if err != nil {
 		return fmt.Errorf("migration: %w", err)
 	}
-	// Defence in depth for external API roles. If the runtime DB role does not
-	// own these tables, apply this hardening through a privileged migration role.
+	// Best-effort defence in depth for API roles exposed through PostgREST.
+	// If the runtime role is not table owner, apply hardening using a privileged migration role.
 	if _, hardenErr := DB.ExecContext(ctx, hardenSQL); hardenErr != nil {
 		log.Printf("⚠ could not apply row-level-security hardening: %v", hardenErr)
-	}
-	// Best-effort defence in depth for API roles exposed through PostgREST.
-	// If the runtime role is not the table owner, apply this using a privileged migration role.
-	if _, e := DB.ExecContext(ctx, hardenSQL); e != nil {
-		log.Printf("⚠ could not apply row-level-security hardening: %v", e)
 	}
 	log.Println("✓ Database schema ready")
 	return nil
 }
 
 const hardenSQL = `
-DO $
-BEGIN
-  ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-    REVOKE ALL ON TABLE users, assets, applications FROM anon;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
-    REVOKE ALL ON TABLE users, assets, applications FROM authenticated;
-  END IF;
-EXCEPTION WHEN insufficient_privilege THEN
-  RAISE NOTICE 'RLS hardening skipped (database role is not table owner)';
-END $;`
-
-
-const hardenSQL = `
-DO $
+DO $$
 BEGIN
   ALTER TABLE users ENABLE ROW LEVEL SECURITY;
   ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
@@ -207,9 +185,8 @@ BEGIN
     REVOKE ALL ON TABLE users, assets, applications FROM authenticated;
   END IF;
 EXCEPTION WHEN insufficient_privilege THEN
-  RAISE NOTICE 'row-level-security hardening skipped (not the table owner)';
-END $;`
-
+  RAISE NOTICE 'RLS hardening skipped (database role is not table owner)';
+END $$;`
 
 func handleGetAssets(c *gin.Context) {
 	userID := c.GetString("user_id")
