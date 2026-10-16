@@ -16,7 +16,7 @@ openssl genpkey -algorithm ED25519 -out prexus-audit-ed25519.pem
 chmod 600 prexus-audit-ed25519.pem
 ~~~
 
-Provision the private key through the deployment's secret-file mechanism and mount the ledger directory on durable storage. Do not commit the key, put it in ordinary environment-variable values, or copy it into an exported audit bundle. The gateway refuses to start in ENV=production if either setting is missing or the key cannot be parsed.
+Provision the private key through the deployment's secret-file mechanism and mount the ledger directory on durable storage. For the Render blueprint, add a Secret File named `prexus-audit-ed25519.pem` at `/etc/secrets/prexus-audit-ed25519.pem` before deploying; `render.yaml` provisions the durable ledger disk and points the gateway at that path, but deliberately does not generate or commit the private key. Do not commit the key, put it in ordinary environment-variable values, or copy it into an exported audit bundle. The gateway refuses to start in ENV=production if either setting is missing or the key cannot be parsed.
 
 ## Event behavior
 
