@@ -246,6 +246,8 @@ func buildRouter() *gin.Engine {
 		auth.POST("/gemini", RateLimitMiddleware(), RequirePermission("risk:run"), quota, handleLegacyAI("gemini"))
 
 		auth.GET("/conduit/tools", RequirePermission("conduit:read"), handleConduitTools)
+		auth.GET("/admin/applications", RequirePermission("applications:read"), handleListApplications)
+		auth.GET("/admin/applications/:ref", RequirePermission("applications:read"), handleGetApplication)
 		auth.GET("/me", handleGetMe)
 		auth.PUT("/me", handleUpdateMe)
 	}
