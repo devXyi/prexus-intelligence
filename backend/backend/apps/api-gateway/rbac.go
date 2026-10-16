@@ -8,7 +8,7 @@ import "github.com/gin-gonic/gin"
 var rolePermissions = map[string][]string{
 	"admin": {
 		"assets:read", "assets:create", "assets:update", "assets:delete",
-		"risk:run", "user:read", "conduit:read",
+		"risk:run", "user:read", "conduit:read", "applications:read",
 	},
 	"user": {
 		"assets:read", "assets:create", "assets:update", "risk:run", "conduit:read",
