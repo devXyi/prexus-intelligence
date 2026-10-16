@@ -80,7 +80,7 @@ func TestTornTailRecoveryIsRecorded(t *testing.T) {
 	if err := l.Close(); err != nil { t.Fatal(err) }
 	f, err := os.OpenFile(filepath.Join(dir, "ledger.ndjson"), os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil { t.Fatal(err) }
-	if _, err := f.Write([]byte("{\\"torn\\":")); err != nil { t.Fatal(err) }
+	if _, err := f.Write([]byte("{\"torn\":")); err != nil { t.Fatal(err) }
 	if err := f.Close(); err != nil { t.Fatal(err) }
 	l, err = Open(dir, key)
 	if err != nil { t.Fatal(err) }
