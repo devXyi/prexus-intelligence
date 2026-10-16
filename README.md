@@ -338,6 +338,7 @@ Authentication: `Authorization: Bearer <JWT>` (24 h). Rate limit: 5 req/s per IP
 | `GET /health` · `GET /ready` | none | liveness · readiness (database) |
 | `POST /register` · `POST /login` | none | create account (role `user`) · obtain JWT |
 | `POST /apply` | none | access / procurement application (stored in Postgres, emailed if SMTP configured) |
+| `GET /admin/applications[/:ref]` | admin (`applications:read`) | read stored applications with bounded pagination and reference validation |
 | `GET/POST/PUT/DELETE /assets[/:id]` | `assets:*` | the caller's assets |
 | `GET /alerts` | `assets:read` | alerts derived from the caller's asset scores |
 | `POST /risk/asset` · `/risk/portfolio` · `/risk/stress-test` | `risk:run` | Monte Carlo (Rust core) via the engine |

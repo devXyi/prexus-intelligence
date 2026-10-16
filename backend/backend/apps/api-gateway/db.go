@@ -163,9 +163,30 @@ func migrate() error {
 	if err != nil {
 		return fmt.Errorf("migration: %w", err)
 	}
+	// Best-effort defence in depth for API roles exposed through PostgREST.
+	// If the runtime role is not table owner, apply hardening using a privileged migration role.
+	if _, hardenErr := DB.ExecContext(ctx, hardenSQL); hardenErr != nil {
+		log.Printf("⚠ could not apply row-level-security hardening: %v", hardenErr)
+	}
 	log.Println("✓ Database schema ready")
 	return nil
 }
+
+const hardenSQL = `
+DO $$
+BEGIN
+  ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE users, assets, applications FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE users, assets, applications FROM authenticated;
+  END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'RLS hardening skipped (database role is not table owner)';
+END $$;`
 
 func handleGetAssets(c *gin.Context) {
 	userID := c.GetString("user_id")
