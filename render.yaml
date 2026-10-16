@@ -29,6 +29,10 @@ services:
     startCommand: ./app
     plan: starter                    # always-on (free instances sleep → first request times out)
     healthCheckPath: /health         # liveness only; /ready also checks the database
+    disk:
+      name: gateway-audit-ledger
+      mountPath: /var/lib/prexus-audit
+      sizeGB: 1
     envVars:
       - fromGroup: prexus-shared-secrets
       - key: ENV
@@ -39,6 +43,10 @@ services:
         fromDatabase: { name: prexus-db, property: connectionString }
       - key: DATA_ENGINE_URL         # Render private-network host:port (the gateway adds http://)
         fromService: { type: pserv, name: meteorium-engine, property: hostport }
+      - key: AUDIT_LEDGER_DIR
+        value: /var/lib/prexus-audit
+      - key: AUDIT_LEDGER_PRIVATE_KEY # Add this secret file in the Render dashboard before deploying
+        value: /etc/secrets/prexus-audit-ed25519.pem
       - key: ALLOWED_ORIGINS
         value: https://prexus.in,https://www.prexus.in
       - key: TRUSTED_PROXIES         # all traffic arrives via Render's proxy; the container is not directly reachable
