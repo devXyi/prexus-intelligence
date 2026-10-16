@@ -203,3 +203,61 @@ func TestPG_InitDBWithRetry_RecoversWhenDatabaseComesUp(t *testing.T) {
 	}
 	CloseDB()
 }
+
+func TestPG_Admin_ReadsStoredApplications_AndRBAC(t *testing.T) {
+	pgSetup(t)
+	t.Setenv("SMTP_HOST", "")
+	r := newTestRouter(t)
+	for _, email := range []string{"admin-pg@example.org", "user-pg@example.org"} {
+		w := doJSON(r, "POST", "/register", map[string]any{"email": email, "password": "correct-horse-1", "full_name": "Test"}, nil)
+		if w.Code >= 300 { t.Fatalf("register %s: %d %s", email, w.Code, w.Body.String()) }
+	}
+	if _, err := DB.Exec(`UPDATE users SET role='admin' WHERE email='admin-pg@example.org'`); err != nil { t.Fatal(err) }
+	login := func(email string) string {
+		w := doJSON(r, "POST", "/login", map[string]any{"email": email, "password": "correct-horse-1"}, nil)
+		var out AuthResponse
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		if w.Code != 200 || out.Token == "" { t.Fatalf("login %s: %d %s", email, w.Code, w.Body.String()) }
+		return out.Token
+	}
+	adminToken, userToken := login("admin-pg@example.org"), login("user-pg@example.org")
+	body := validApply()
+	body["use_case"] = "admin query integration — naïve ✓"
+	w := doJSON(r, "POST", "/apply", body, nil)
+	var applied map[string]string
+	_ = json.Unmarshal(w.Body.Bytes(), &applied)
+	if w.Code != 200 || applied["ref"] == "" { t.Fatalf("apply: %d %s", w.Code, w.Body.String()) }
+	authed := func(token string) map[string]string { return map[string]string{"Authorization": "Bearer " + token} }
+
+	w = doJSON(r, "GET", "/admin/applications?limit=1&offset=0", nil, authed(adminToken))
+	var list struct { Applications []map[string]any `json:"applications"` }
+	_ = json.Unmarshal(w.Body.Bytes(), &list)
+	if w.Code != 200 || len(list.Applications) != 1 || list.Applications[0]["ref"] != applied["ref"] || list.Applications[0]["use_case"] != body["use_case"] {
+		t.Fatalf("admin listing failed: %d %s", w.Code, w.Body.String())
+	}
+	w = doJSON(r, "GET", "/admin/applications/" + applied["ref"], nil, authed(adminToken))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "asha@example.org") { t.Fatalf("admin read failed: %d %s", w.Code, w.Body.String()) }
+	w = doJSON(r, "GET", "/admin/applications", nil, authed(userToken))
+	if w.Code != http.StatusForbidden { t.Fatalf("normal user admin listing: %d %s", w.Code, w.Body.String()) }
+	w = doJSON(r, "GET", "/admin/applications", nil, nil)
+	if w.Code != http.StatusUnauthorized { t.Fatalf("anonymous admin listing: %d", w.Code) }
+}
+
+func TestPG_Migration_EnablesRLSAndRevokesAPIGrants(t *testing.T) {
+	pgSetup(t)
+	var secured int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pg_class WHERE relname IN ('users','assets','applications') AND relkind='r' AND relrowsecurity`).Scan(&secured); err != nil || secured != 3 {
+		t.Fatalf("expected RLS on users/assets/applications; got %d, err=%v", secured, err)
+	}
+	// Only test revocation where this connection is permitted to create roles and grant privileges.
+	_, _ = DB.Exec(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; END $$`)
+	if _, err := DB.Exec(`GRANT ALL ON TABLE users,assets,applications TO anon,authenticated`); err != nil {
+		t.Skipf("role-grant check requires privileged test database: %v", err)
+	}
+	CloseDB()
+	if err := InitDB(); err != nil { t.Fatal(err) }
+	var grants int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name IN ('users','assets','applications') AND grantee IN ('anon','authenticated')`).Scan(&grants); err != nil || grants != 0 {
+		t.Fatalf("API role grants remain after migration: %d, err=%v", grants, err)
+	}
+}
