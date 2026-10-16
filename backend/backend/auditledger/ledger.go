@@ -106,7 +106,11 @@ func Open(dir, privateKeyPath string) (*Ledger, error) {
 	check := VerifyEvents(events)
 	if !check.Valid { return nil, fmt.Errorf("audit ledger integrity failure at sequence %d: %s", check.HeadSequence, check.Reason) }
 	if len(events) > 0 {
-		l.seq = events[len(events)-1]["seq"].(json.Number).Int64()
+		seq, ok := integer(events[len(events)-1]["seq"])
+		if !ok {
+			return nil, errors.New("audit ledger has an invalid final sequence")
+		}
+		l.seq = seq
 		l.headHash = events[len(events)-1]["hash"].(string)
 	}
 	if err := l.verifyAnchor(len(events), events); err != nil { return nil, err }
