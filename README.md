@@ -173,10 +173,10 @@ Governments and institutions today rely on reactive strategies.
 |---|---|
 | Core simulation engine | ✅ Functional |
 | Prototype | ✅ Completed |
-| Meteorium (Climate Risk) | ✅ Live |
+| Meteorium (Climate Risk) | 🧪 Prototype / deployment status must be verified |
 | Real-world dataset integration | 🔄 Expanding |
-| Healtho (Health Intelligence) | 🔨 In Build |
-| Raksha (Threat Intelligence) | 🔨 In Build |
+| Healtho (Health Intelligence) | 📝 Planned; no implementation claimed |
+| Raksha (Threat Intelligence) | 🧪 Prototype implemented; uncalibrated |
 
 <br/>
 
@@ -376,20 +376,24 @@ Healtho applies the Prexus simulation core to population health and bio-systemic
 
 ---
 
-### ◆ Raksha — Threat Intelligence Module
-**Status: In Build**
+### ◆ Raksha — Threat & Disruption Intelligence
+**Status: Prototype implemented · 31 tests documented**
 
-Raksha is the geopolitical and institutional threat layer of Prexus. Named for protection, it is designed to give sovereign operators 360-degree situational awareness across physical, cyber, and systemic threat vectors.
+Raksha is being built to correlate cyber, geopolitical, and physical-hazard signals into explainable risk assessments for **assets, organisations, and infrastructure**. The current prototype is more than a roadmap, but it is not yet a calibrated operational intelligence service.
 
-**Planned capabilities:**
+**Implemented in the repository:**
 
-- Geopolitical risk scoring with probabilistic conflict modelling
-- Critical infrastructure threat surface analysis
-- Supply chain disruption forecasting
-- Cyber-physical threat correlation engine
-- Macro-economic instability early-warning system
+- **STIX 2.1 data model** with Prexus event and asset objects, deterministic identifiers, Traffic Light Protocol (TLP) markings, source provenance, and versioned records.
+- **Offline-first ingestion** with synthetic fixtures and bundle building/validation.
+- **Connector parsers** for CISA Known Exploited Vulnerabilities (KEV), FIRST Exploit Prediction Scoring System (EPSS), GDELT 2.0 event data, and NASA FIRMS VIIRS fire detections.
+- **Read-only TAXII 2.1 interface** for discovery, collections, object retrieval, filtering, and pagination.
+- **Attribute-based access control (ABAC)** using default-deny and deny-overrides, clearance, compartments, TLP, purpose limitation, export rules, and no-write-down controls.
+- **Transparent v0 scoring** with evidence references and uncertainty intervals; scores explicitly remain `calibrated:false`.
+- **Dependency cascade simulation** and a rolling-origin back-test harness for Brier score, expected calibration error (ECE), reliability bins, and comparison with climatology.
 
-*Target clearance: Level 5 · Target deployment: National governments, Sovereign wealth funds, Defence ministries*
+**Important limitations:** the documented test suite uses synthetic fixtures; no live-feed fetch was verified in the development environment. The GDELT column mapping still needs validation against a live sample. Scores are uncalibrated and must not be presented as validated forecasts. OpenCTI/MISP interoperability, Postgres/PostGIS storage, analyst UI, and real-history back-testing remain open work.
+
+See [Raksha design and implementation notes](./docs/RAKSHA_DESIGN.md) and the [audit record](./docs/AUDIT_FIXES.md).
 
 <br/>
 
@@ -435,6 +439,50 @@ Errors: `400` validation · `401` missing/invalid token · `403` permission · `
 Not yet implemented: token revocation / refresh tokens, per-organisation tenancy in the gateway, HSM-backed key management,
 third-party penetration test. See `docs/AUDIT_FIXES.md`.
 
+
+## 🛰️ Air-gap & Offline Operations
+
+Prexus includes an **air-gap control-plane prototype** designed for operator workflows in restricted-network environments. Its goal is to move approved, signed data bundles into a controlled enclave without requiring the enclave to fetch external feeds directly.
+
+**Implemented and documented:**
+
+- Per-operator authentication for the control-plane console.
+- Signed, hash-chained audit records with an Ed25519-signed ledger head and an offline verification path.
+- Signed-bundle import flow with signature, rollback, and file-hash checks before parsing and storage.
+- An engine node restricted to internal addresses, plus an egress self-test.
+- Automated control-plane tests, including a run of the same suite in a network namespace with only loopback access.
+
+**How the intended flow works**
+
+```mermaid
+flowchart LR
+    A["External feeds / source adapters"] --> B["Validate & build bundle"]
+    B --> C["Sign bundle"]
+    C --> D["Controlled transfer"]
+    D --> E["Verify signature, rollback & hashes"]
+    E --> F["Enclave store + audit ledger"]
+    F --> G["Authorised queries"]
+    style C fill:#102A43,stroke:#55D6FF,color:#EAFBFF
+    style E fill:#102A43,stroke:#55D6FF,color:#EAFBFF
+    style F fill:#102A43,stroke:#55D6FF,color:#EAFBFF
+```
+
+This is a **tested development implementation, not an air-gap certification or a claim that every deployment is physically disconnected**. The runbook still needs deployment-specific verification. SSO/PKI integration, high availability, hardware security module (HSM)-backed key management, and full gateway-to-ledger integration remain open; the Go gateway's audit output is still stdout-based. See [air-gap overview](./airgap/README.md), [runbook](./docs/AIRGAP_RUNBOOK.md), [ledger specification](./docs/LEDGER_SPEC.md), and [audit/fix status](./docs/AUDIT_FIXES.md).
+
+## 🧪 Test & Verification Snapshot
+
+The repository's audit record documents these passing test totals in its authoring sandbox:
+
+| Area | Recorded tests | Scope / caveat |
+|---|---:|---|
+| Go API gateway | 32 unit + 5 PostgreSQL integration | Includes race-clean unit run and real PostgreSQL 16 integration |
+| Python engine | 48 | Engine tests |
+| `prexus_core` | 30 | Includes shared ABAC primitives |
+| Raksha | 31 | Synthetic fixtures; does not prove live-feed quality or calibration |
+| Node air-gap control plane | 30 | 28 standard + 2 run in a no-network namespace |
+| Rust | 23 | Simulation-core tests |
+
+These are the counts recorded in [`docs/AUDIT_FIXES.md`](./docs/AUDIT_FIXES.md), not a substitute for checking the current commit's CI. Dependency scanners, Docker, and deployment checks are environment-dependent; see the audit record for what was and was not run.
 
 ## Deployment
 
