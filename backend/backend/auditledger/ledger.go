@@ -138,7 +138,7 @@ func Open(dir, privateKeyPath string) (*Ledger, error) {
 	if err := l.verifyAnchor(len(events), events); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("open audit ledger for append: %w", err)
 	}
