@@ -53,6 +53,13 @@ func Open(dir, privateKeyPath string) (*Ledger, error) {
 	if strings.TrimSpace(dir) == "" || strings.TrimSpace(privateKeyPath) == "" {
 		return nil, errors.New("audit ledger directory and private key path are required")
 	}
+	keyInfo, err := os.Stat(privateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat audit signing key: %w", err)
+	}
+	if keyInfo.Mode().Perm()&0077 != 0 {
+		return nil, errors.New("audit signing key permissions are too broad; require owner-only access (0600)")
+	}
 	keyBytes, err := os.ReadFile(privateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("read audit signing key: %w", err)
@@ -90,38 +97,66 @@ func Open(dir, privateKeyPath string) (*Ledger, error) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read audit ledger: %w", err)
 	}
+	discardedBytes := 0
 	if len(raw) > 0 && raw[len(raw)-1] != '\n' {
 		cut := bytes.LastIndexByte(raw, '\n') + 1
-		discarded := len(raw) - cut
+		discardedBytes = len(raw) - cut
 		f, openErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
-		if openErr != nil { return nil, fmt.Errorf("open ledger for torn-tail recovery: %w", openErr) }
-		if truncErr := f.Truncate(int64(cut)); truncErr != nil { _ = f.Close(); return nil, fmt.Errorf("truncate torn ledger tail: %w", truncErr) }
-		if syncErr := f.Sync(); syncErr != nil { _ = f.Close(); return nil, fmt.Errorf("sync recovered ledger: %w", syncErr) }
+		if openErr != nil {
+			return nil, fmt.Errorf("open ledger for torn-tail recovery: %w", openErr)
+		}
+		if truncErr := f.Truncate(int64(cut)); truncErr != nil {
+			_ = f.Close()
+			return nil, fmt.Errorf("truncate torn ledger tail: %w", truncErr)
+		}
+		if syncErr := f.Sync(); syncErr != nil {
+			_ = f.Close()
+			return nil, fmt.Errorf("sync recovered ledger: %w", syncErr)
+		}
 		_ = f.Close()
 		raw = raw[:cut]
-		_ = discarded // recorded below after the chain is verified
 	}
 	events, err := decodeEvents(raw)
-	if err != nil { return nil, fmt.Errorf("decode audit ledger: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("decode audit ledger: %w", err)
+	}
 	check := VerifyEvents(events)
-	if !check.Valid { return nil, fmt.Errorf("audit ledger integrity failure at sequence %d: %s", check.HeadSequence, check.Reason) }
+	if !check.Valid {
+		return nil, fmt.Errorf("audit ledger integrity failure: %s", check.Reason)
+	}
 	if len(events) > 0 {
 		seq, ok := integer(events[len(events)-1]["seq"])
 		if !ok {
 			return nil, errors.New("audit ledger has an invalid final sequence")
 		}
-		l.seq = seq
-		l.headHash = events[len(events)-1]["hash"].(string)
+		hash, ok := events[len(events)-1]["hash"].(string)
+		if !ok {
+			return nil, errors.New("audit ledger has an invalid final hash")
+		}
+		l.seq, l.headHash = seq, hash
 	}
-	if err := l.verifyAnchor(len(events), events); err != nil { return nil, err }
+	if err := l.verifyAnchor(len(events), events); err != nil {
+		return nil, err
+	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil { return nil, fmt.Errorf("open audit ledger for append: %w", err) }
-	if err := f.Chmod(0600); err != nil { _ = f.Close(); return nil, fmt.Errorf("secure audit ledger file: %w", err) }
-	l.file = f
-	if len(raw) > 0 && len(raw) > 0 && raw[len(raw)-1] == '\n' {
-		// No recovery event is necessary when no torn tail was found.
+	if err != nil {
+		return nil, fmt.Errorf("open audit ledger for append: %w", err)
 	}
-	if err := l.writeAnchor(); err != nil { _ = f.Close(); return nil, fmt.Errorf("write initial signed audit head: %w", err) }
+	if err := f.Chmod(0600); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("secure audit ledger file: %w", err)
+	}
+	l.file = f
+	if err := l.writeAnchor(); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("write initial signed audit head: %w", err)
+	}
+	if discardedBytes > 0 {
+		if _, err := l.Append("system", "ledger.recovered", "ledger", map[string]any{"discarded_bytes": discardedBytes}); err != nil {
+			_ = f.Close()
+			return nil, fmt.Errorf("record torn-tail recovery: %w", err)
+		}
+	}
 	return l, nil
 }
 
