@@ -206,8 +206,8 @@ func canonicalString(s string) ([]byte,error) {
 	enc:=json.NewEncoder(&b); enc.SetEscapeHTML(false)
 	if err:=enc.Encode(s);err!=nil{return nil,err}
 	raw:=bytes.TrimSuffix(b.Bytes(),[]byte("\n"))
-	raw=bytes.ReplaceAll(raw,[]byte(`\\u2028`),[]byte("\u2028"))
-	raw=bytes.ReplaceAll(raw,[]byte(`\\u2029`),[]byte("\u2029"))
+	raw=bytes.ReplaceAll(raw,[]byte(`\u2028`),[]byte("\u2028"))
+	raw=bytes.ReplaceAll(raw,[]byte(`\u2029`),[]byte("\u2029"))
 	return append([]byte(nil),raw...),nil
 }
 
