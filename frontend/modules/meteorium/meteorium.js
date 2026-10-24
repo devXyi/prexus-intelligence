@@ -133,8 +133,8 @@ function _renderShell() {
 
       <div class="met-sidebar-footer">
         <div class="status-dot live pulse"></div>
-        <div class="met-user-line">ORG: ${org?.orgName || '—'}</div>
-        <div class="met-user-line">USER: ${user?.email || '—'}</div>
+        <div class="met-user-line" id="met-org-name"></div>
+        <div class="met-user-line" id="met-user-email"></div>
 
         <button id="met-logout">Sign Out</button>
       </div>
@@ -158,6 +158,13 @@ function _renderShell() {
 
   <div class="met-cls">PREXUS INC.</div>
   `;
+
+  // Render stored profile values as text, never as HTML.
+  const orgNameEl = page.querySelector('#met-org-name');
+  if (orgNameEl) orgNameEl.textContent = `ORG: ${org?.orgName || '—'}`;
+
+  const userEmailEl = page.querySelector('#met-user-email');
+  if (userEmailEl) userEmailEl.textContent = `USER: ${user?.email || '—'}`;
 
   page.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
