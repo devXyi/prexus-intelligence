@@ -9,6 +9,7 @@ FIXES:
  - cache_key: always initialized before use, not just inside if req.use_cache
 """
 
+import atexit
 import asyncio
 import logging
 import os
@@ -22,6 +23,8 @@ import uvicorn
 from fastapi import APIRouter, FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from posthog import Posthog
+from posthog.integrations.asgi import PosthogASGIMiddleware
 from pydantic import BaseModel, Field, validator
 
 # ── Path setup ────────────────────────────────────────────────────────────────
@@ -44,6 +47,65 @@ logging.basicConfig(
 )
 logger = logging.getLogger("meteorium.layer6")
 
+POSTHOG_PROJECT_TOKEN = os.environ.get("POSTHOG_PROJECT_TOKEN")
+POSTHOG_HOST = os.environ.get("POSTHOG_HOST")
+posthog_client: Optional[Posthog] = None
+posthog_log_provider = None
+posthog_logs_logger = logging.getLogger("meteorium.posthog.logs")
+
+
+def _configure_posthog_log_capture() -> None:
+    """Export only the dedicated PostHog log stream over OTLP."""
+    global posthog_log_provider
+
+    if not POSTHOG_PROJECT_TOKEN or not POSTHOG_HOST:
+        return
+
+    try:
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+
+        posthog_log_provider = LoggerProvider()
+        exporter = OTLPLogExporter(
+            endpoint=f"{POSTHOG_HOST.rstrip('/')}/i/v1/logs",
+            headers={"Authorization": f"Bearer {POSTHOG_PROJECT_TOKEN}"},
+        )
+        posthog_log_provider.add_log_record_processor(
+            BatchLogRecordProcessor(exporter)
+        )
+        posthog_logs_logger.addHandler(
+            LoggingHandler(logger_provider=posthog_log_provider)
+        )
+        posthog_logs_logger.setLevel(logging.INFO)
+        posthog_logs_logger.propagate = False
+    except Exception:
+        posthog_log_provider = None
+        logger.exception("Unable to configure PostHog log capture")
+
+
+if POSTHOG_PROJECT_TOKEN and POSTHOG_HOST:
+    posthog_client = Posthog(
+        POSTHOG_PROJECT_TOKEN,
+        host=POSTHOG_HOST,
+        enable_exception_autocapture=True,
+    )
+    atexit.register(posthog_client.shutdown)
+    _configure_posthog_log_capture()
+elif os.environ.get("ENV", "production") != "production":
+    if not POSTHOG_PROJECT_TOKEN:
+        logger.warning(
+            "POSTHOG_PROJECT_TOKEN variable required by PostHog is missing or "
+            "un-configured, this causes events to be silently missed. This error "
+            "stops appearing once POSTHOG_PROJECT_TOKEN is configured"
+        )
+    if not POSTHOG_HOST:
+        logger.warning(
+            "POSTHOG_HOST variable required by PostHog is missing or un-configured, "
+            "this causes events to be silently missed. This error stops appearing "
+            "once POSTHOG_HOST is configured"
+        )
+
 # ─── Globals ──────────────────────────────────────────────────────────────────
 _lake:     Optional[DataLake]               = None
 _preproc:  Optional[GeospatialPreprocessor] = None
@@ -51,6 +113,16 @@ _store:    Optional[FeatureStore]           = None
 _workers:  Optional[WorkerRegistry]        = None
 _engine:   Optional[RiskEngine]            = None
 _risk_cache: dict = {}   # {cache_key: (result_dict, expires_at)}
+
+
+def _capture_event(event: str, properties: dict) -> None:
+    """Queue analytics without interrupting a completed engine operation."""
+    if not posthog_client:
+        return
+    try:
+        posthog_client.capture(event, properties=properties)
+    except Exception:
+        logger.exception("Unable to capture PostHog event %s", event)
 
 
 # ─── Startup / shutdown ───────────────────────────────────────────────────────
@@ -77,10 +149,28 @@ async def lifespan(app: FastAPI):
     logger.info(f"✓ Layer 5: Risk Engine ready — Rust: {RUST_AVAILABLE}")
     logger.info(f"✓ Layer 6: API ready on {API_HOST}:{API_PORT}")
     logger.info(f"✓ Monte Carlo draws: {MONTE_CARLO_DRAWS:,}")
+    posthog_logs_logger.info(
+        "risk_engine_ready",
+        extra={
+            "rust_engine_available": RUST_AVAILABLE,
+            "monte_carlo_draws": MONTE_CARLO_DRAWS,
+        },
+    )
 
-    yield
-
-    logger.info("Meteorium Engine shutting down.")
+    try:
+        yield
+    finally:
+        logger.info("Meteorium Engine shutting down.")
+        if posthog_client:
+            try:
+                posthog_client.flush()
+            except Exception:
+                logger.exception("Unable to flush PostHog events during shutdown")
+        if posthog_log_provider:
+            try:
+                posthog_log_provider.shutdown()
+            except Exception:
+                logger.exception("Unable to flush PostHog logs during shutdown")
 
 
 # ─── App ──────────────────────────────────────────────────────────────────────
@@ -94,6 +184,12 @@ app = FastAPI(
     redoc_url   = None,
     openapi_url = "/openapi.json" if os.environ.get("ENGINE_ENABLE_DOCS") == "1" else None,
 )
+
+if posthog_client:
+    # The gateway forwards the authenticated user's stable ID and session in the
+    # standard PostHog tracing headers. The middleware binds them once per request,
+    # so all captures and automatically captured exceptions inherit that identity.
+    app.add_middleware(PosthogASGIMiddleware, client=posthog_client)
 
 # The engine is called by the Go gateway (server-to-server). Browsers must NOT
 # talk to it directly: it holds no user sessions and requires the shared secret.
@@ -245,6 +341,24 @@ async def score_asset(
         cached_result, expires = _risk_cache[cache_key]
         if time.time() < expires:
             cached_result["from_cache"] = True
+            _capture_event(
+                "asset_risk_assessment_completed",
+                {
+                    "asset_type": req.asset_type,
+                    "cache_hit": True,
+                    "horizon_days": req.horizon_days,
+                    "scenario": req.scenario,
+                },
+            )
+            posthog_logs_logger.info(
+                "asset_risk_assessment_completed",
+                extra={
+                    "asset_type": req.asset_type,
+                    "cache_hit": True,
+                    "horizon_days": req.horizon_days,
+                    "scenario": req.scenario,
+                },
+            )
             return cached_result
 
     logger.info(f"[/risk/asset] {req.asset_id} @ ({req.lat},{req.lon}) [{req.country_code}] "
@@ -299,6 +413,26 @@ async def score_asset(
     if req.use_cache:
         _risk_cache[cache_key] = (response, time.time() + RISK_CACHE_TTL_SEC)
 
+    _capture_event(
+        "asset_risk_assessment_completed",
+        {
+            "asset_type": req.asset_type,
+            "cache_hit": False,
+            "horizon_days": req.horizon_days,
+            "scenario": req.scenario,
+            "telemetry_record_count": len(telemetry),
+        },
+    )
+    posthog_logs_logger.info(
+        "asset_risk_assessment_completed",
+        extra={
+            "asset_type": req.asset_type,
+            "cache_hit": False,
+            "horizon_days": req.horizon_days,
+            "scenario": req.scenario,
+            "telemetry_record_count": len(telemetry),
+        },
+    )
     return response
 
 
@@ -355,6 +489,14 @@ async def score_portfolio(
     portfolio = _engine.score_portfolio(asset_scores, req.scenario)
     elapsed   = (time.perf_counter() - start) * 1000
 
+    _capture_event(
+        "portfolio_risk_assessment_completed",
+        {
+            "asset_count": len(req.assets),
+            "scored_asset_count": len(asset_scores),
+            "scenario": req.scenario,
+        },
+    )
     return {
         **portfolio.to_dict(),
         "elapsed_ms": round(elapsed, 1),
@@ -385,7 +527,7 @@ async def stress_test(
         min(_engine.n_draws, 5000),
     )
 
-    return {
+    response = {
         "asset_id": req.asset_id,
         "scenarios": [
             {"label": l, "composite_risk": round(c, 4),
@@ -394,6 +536,16 @@ async def stress_test(
         ],
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
+    _capture_event(
+        "risk_stress_test_completed",
+        {
+            "asset_type": req.asset_type,
+            "horizon_days": req.horizon_days,
+            "scenario": req.scenario,
+            "scenario_count": len(scenarios),
+        },
+    )
+    return response
 
 
 @protected.post("/risk/histogram")
@@ -418,13 +570,23 @@ async def loss_histogram(
         min(_engine.n_draws, 5000),
     )
 
-    return {
+    response = {
         "asset_id": req.asset_id,
         "histogram": [
             {"lower": b[0], "upper": b[1], "frequency": round(b[2], 6)}
             for b in buckets
         ],
     }
+    _capture_event(
+        "loss_histogram_generated",
+        {
+            "asset_type": req.asset_type,
+            "bucket_count": len(buckets),
+            "horizon_days": req.horizon_days,
+            "scenario": req.scenario,
+        },
+    )
+    return response
 
 
 # ─── Lake / manifest endpoints ────────────────────────────────────────────────
@@ -495,11 +657,22 @@ class SimulateRequest(BaseModel):
 async def simulate_event(req: SimulateRequest):
     """Scenario simulation used by the UI's Run Simulation button (CAT v0)."""
     from catmodel.simulate import simulate_event as _sim
-    return _sim(
+    response = _sim(
         hazard=req.scenario, intensity=req.intensity, duration_days=req.duration_days,
         target_year=req.rcp_year, rcp=req.rcp_scenario, value_mm=req.value_usd_mm,
         composite_risk=req.composite_risk, asset_type=req.asset_type, seed=req.seed,
     )
+    _capture_event(
+        "risk_simulation_completed",
+        {
+            "asset_type": req.asset_type,
+            "duration_days": req.duration_days,
+            "hazard": req.scenario,
+            "rcp_scenario": req.rcp_scenario,
+            "target_year": req.rcp_year,
+        },
+    )
+    return response
 
 
 app.include_router(protected)
