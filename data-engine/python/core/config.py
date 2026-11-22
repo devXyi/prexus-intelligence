@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─── Base paths ───────────────────────────────────────────────────────────────
 BASE_DIR = Path(os.environ.get("METEORIUM_BASE", "/tmp/meteorium"))
@@ -46,6 +49,8 @@ GEMINI_API_KEY    = os.environ.get("GEMINI_API_KEY",    "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY",    "")
 ENGINE_SECRET     = os.environ.get("ENGINE_SECRET",     "")
+POSTHOG_PROJECT_TOKEN = os.environ.get("POSTHOG_PROJECT_TOKEN", "")
+POSTHOG_HOST          = os.environ.get("POSTHOG_HOST", "")
 
 
 # ─── Monte Carlo ──────────────────────────────────────────────────────────────

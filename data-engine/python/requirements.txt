@@ -3,6 +3,10 @@
 fastapi>=0.111,<1
 uvicorn[standard]>=0.30,<1
 pydantic>=2.7,<3
+posthog>=7.69,<8
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
 httpx>=0.27,<1
 python-dotenv>=1.0,<2
 tenacity>=8.3,<10

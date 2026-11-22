@@ -9,6 +9,7 @@ FIXES:
  - cache_key: always initialized before use, not just inside if req.use_cache
 """
 
+import atexit
 import asyncio
 import logging
 import os
@@ -22,6 +23,8 @@ import uvicorn
 from fastapi import APIRouter, FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from posthog import Posthog
+from posthog.integrations.asgi import PosthogASGIMiddleware
 from pydantic import BaseModel, Field, validator
 
 # ── Path setup ────────────────────────────────────────────────────────────────
@@ -29,7 +32,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from core.config import (
     API_HOST, API_PORT, API_WORKERS, API_RELOAD,
-    ENGINE_SECRET, MONTE_CARLO_DRAWS, RISK_CACHE_TTL_SEC
+    ENGINE_SECRET, MONTE_CARLO_DRAWS, POSTHOG_HOST, POSTHOG_PROJECT_TOKEN,
+    RISK_CACHE_TTL_SEC
 )
 from core.security import assert_auth_configured, require_engine_auth
 from layer1.workers import WorkerRegistry
@@ -43,6 +47,56 @@ logging.basicConfig(
     format  = "%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 logger = logging.getLogger("meteorium.layer6")
+posthog_logs_logger = logging.getLogger("meteorium.posthog_logs")
+posthog_logs_logger.setLevel(logging.INFO)
+posthog_logs_logger.propagate = False
+posthog_log_provider = None
+
+posthog_client: Optional[Posthog] = None
+if POSTHOG_PROJECT_TOKEN and POSTHOG_HOST:
+    posthog_client = Posthog(
+        POSTHOG_PROJECT_TOKEN,
+        host=POSTHOG_HOST,
+        enable_exception_autocapture=True,
+    )
+    atexit.register(posthog_client.shutdown)
+
+    try:
+        from opentelemetry._logs import set_logger_provider
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+
+        posthog_log_provider = LoggerProvider()
+        set_logger_provider(posthog_log_provider)
+        posthog_log_provider.add_log_record_processor(
+            BatchLogRecordProcessor(
+                OTLPLogExporter(
+                    endpoint=f"{POSTHOG_HOST.rstrip('/')}/i/v1/logs",
+                    headers={"Authorization": f"Bearer {POSTHOG_PROJECT_TOKEN}"},
+                )
+            )
+        )
+        posthog_logs_logger.addHandler(
+            LoggingHandler(logger_provider=posthog_log_provider)
+        )
+    except ImportError:
+        logger.warning(
+            "PostHog log capture is unavailable because OpenTelemetry packages are not installed"
+        )
+elif os.environ.get("ENV", "production") != "production":
+    for variable in (
+        "POSTHOG_PROJECT_TOKEN" if not POSTHOG_PROJECT_TOKEN else None,
+        "POSTHOG_HOST" if not POSTHOG_HOST else None,
+    ):
+        if variable:
+            logger.warning(
+                "%s variable required by PostHog is missing or un-configured, "
+                "this causes events to be silently missed. This error stops "
+                "appearing once %s is configured",
+                variable,
+                variable,
+            )
 
 # ─── Globals ──────────────────────────────────────────────────────────────────
 _lake:     Optional[DataLake]               = None
@@ -77,10 +131,29 @@ async def lifespan(app: FastAPI):
     logger.info(f"✓ Layer 5: Risk Engine ready — Rust: {RUST_AVAILABLE}")
     logger.info(f"✓ Layer 6: API ready on {API_HOST}:{API_PORT}")
     logger.info(f"✓ Monte Carlo draws: {MONTE_CARLO_DRAWS:,}")
+    posthog_logs_logger.info(
+        "risk engine started",
+        extra={
+            "event": "risk_engine_started",
+            "rust_engine_available": RUST_AVAILABLE,
+            "monte_carlo_draw_count": MONTE_CARLO_DRAWS,
+        },
+    )
 
     yield
 
     logger.info("Meteorium Engine shutting down.")
+    if posthog_log_provider:
+        posthog_logs_logger.info("risk engine stopping", extra={"event": "risk_engine_stopping"})
+        try:
+            posthog_log_provider.shutdown(timeout_millis=5000)
+        except Exception:
+            logger.warning("PostHog log flush failed during shutdown", exc_info=True)
+    if posthog_client:
+        try:
+            posthog_client.flush(timeout_seconds=5)
+        except Exception:
+            logger.warning("PostHog flush failed during shutdown", exc_info=True)
 
 
 # ─── App ──────────────────────────────────────────────────────────────────────
@@ -94,6 +167,9 @@ app = FastAPI(
     redoc_url   = None,
     openapi_url = "/openapi.json" if os.environ.get("ENGINE_ENABLE_DOCS") == "1" else None,
 )
+
+if posthog_client:
+    app.add_middleware(PosthogASGIMiddleware, client=posthog_client)
 
 # The engine is called by the Go gateway (server-to-server). Browsers must NOT
 # talk to it directly: it holds no user sessions and requires the shared secret.
@@ -245,6 +321,15 @@ async def score_asset(
         cached_result, expires = _risk_cache[cache_key]
         if time.time() < expires:
             cached_result["from_cache"] = True
+            if posthog_client:
+                posthog_client.capture(
+                    "asset_risk_scored",
+                    properties={"cache_hit": True},
+                )
+            posthog_logs_logger.info(
+                "asset risk scoring completed",
+                extra={"event": "asset_risk_scoring_completed", "cache_hit": True},
+            )
             return cached_result
 
     logger.info(f"[/risk/asset] {req.asset_id} @ ({req.lat},{req.lon}) [{req.country_code}] "
@@ -298,6 +383,30 @@ async def score_asset(
     # Cache result
     if req.use_cache:
         _risk_cache[cache_key] = (response, time.time() + RISK_CACHE_TTL_SEC)
+
+    telemetry_source_count = len({record.source for record in telemetry})
+    if posthog_client:
+        posthog_client.capture(
+            "asset_risk_scored",
+            properties={
+                "cache_hit": False,
+                "telemetry_record_count": len(telemetry),
+                "telemetry_source_count": telemetry_source_count,
+                "elapsed_ms": round(elapsed_ms, 1),
+                "rust_engine_available": RUST_AVAILABLE,
+            },
+        )
+    posthog_logs_logger.info(
+        "asset risk scoring completed",
+        extra={
+            "event": "asset_risk_scoring_completed",
+            "cache_hit": False,
+            "telemetry_record_count": len(telemetry),
+            "telemetry_source_count": telemetry_source_count,
+            "elapsed_ms": round(elapsed_ms, 1),
+            "rust_engine_available": RUST_AVAILABLE,
+        },
+    )
 
     return response
 
@@ -355,6 +464,27 @@ async def score_portfolio(
     portfolio = _engine.score_portfolio(asset_scores, req.scenario)
     elapsed   = (time.perf_counter() - start) * 1000
 
+    if posthog_client:
+        posthog_client.capture(
+            "portfolio_risk_scored",
+            properties={
+                "requested_asset_count": len(req.assets),
+                "scored_asset_count": len(asset_scores),
+                "elapsed_ms": round(elapsed, 1),
+                "rust_engine_available": RUST_AVAILABLE,
+            },
+        )
+    posthog_logs_logger.info(
+        "portfolio risk scoring completed",
+        extra={
+            "event": "portfolio_risk_scoring_completed",
+            "requested_asset_count": len(req.assets),
+            "scored_asset_count": len(asset_scores),
+            "elapsed_ms": round(elapsed, 1),
+            "rust_engine_available": RUST_AVAILABLE,
+        },
+    )
+
     return {
         **portfolio.to_dict(),
         "elapsed_ms": round(elapsed, 1),
@@ -384,6 +514,15 @@ async def stress_test(
         req.value_mm, req.asset_type,
         min(_engine.n_draws, 5000),
     )
+
+    if posthog_client:
+        posthog_client.capture(
+            "risk_stress_test_completed",
+            properties={
+                "scenario_count": len(scenarios),
+                "monte_carlo_draw_count": min(_engine.n_draws, 5000),
+            },
+        )
 
     return {
         "asset_id": req.asset_id,
@@ -417,6 +556,15 @@ async def loss_histogram(
         req.value_mm, req.scenario,
         min(_engine.n_draws, 5000),
     )
+
+    if posthog_client:
+        posthog_client.capture(
+            "risk_histogram_generated",
+            properties={
+                "bucket_count": len(buckets),
+                "monte_carlo_draw_count": min(_engine.n_draws, 5000),
+            },
+        )
 
     return {
         "asset_id": req.asset_id,
@@ -495,11 +643,17 @@ class SimulateRequest(BaseModel):
 async def simulate_event(req: SimulateRequest):
     """Scenario simulation used by the UI's Run Simulation button (CAT v0)."""
     from catmodel.simulate import simulate_event as _sim
-    return _sim(
+    result = _sim(
         hazard=req.scenario, intensity=req.intensity, duration_days=req.duration_days,
         target_year=req.rcp_year, rcp=req.rcp_scenario, value_mm=req.value_usd_mm,
         composite_risk=req.composite_risk, asset_type=req.asset_type, seed=req.seed,
     )
+    if posthog_client:
+        posthog_client.capture(
+            "risk_simulation_completed",
+            properties={"hazard_type": req.scenario},
+        )
+    return result
 
 
 app.include_router(protected)
